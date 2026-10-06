@@ -1234,7 +1234,7 @@ function msgMenu(m) {
     $('#mm-rep', s).onclick = () => { closeSheet(); setReply(m); };
     const c = $('#mm-copy', s); if (c) c.onclick = async () => { closeSheet(); try { await navigator.clipboard.writeText(m.text); toast('Copiato'); } catch { toast('Non riesco a copiare.'); } };
     const d = $('#mm-del', s); if (d) d.onclick = async () => { closeSheet(); await deleteMsg(m); };
-  });
+  }, { guard: true });
 }
 async function deleteMsg(m) {
   if (m.mid) await deleteMedia(m.mid);
@@ -1760,6 +1760,9 @@ function sheet(title, html, mount, opt = {}) {
   if (sheetEl) { sheetEl.remove(); sheetEl = null; } else pushNav('sheet');
   const sc = document.createElement('div'); sc.className = 'scrim';
   sc.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><span class="grab"></span><h3>${esc(title)}</h3>${html}</div>`;
+  // The finger that opened a sheet (e.g. long-press) lifts right after: ignore that first tap so it can't close it or hit a button.
+  const openedAt = Date.now();
+  if (opt.guard) sc.addEventListener('click', e => { if (Date.now() - openedAt < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
   if (!opt.lock) sc.addEventListener('click', e => { if (e.target === sc) closeSheet(); });
   $$('[data-close]', sc).forEach(b => b.onclick = () => closeSheet());
   document.body.appendChild(sc); sheetEl = sc;
@@ -1824,7 +1827,7 @@ function runTour() {
 /* ======================= Problem reports to Claude ======================= */
 // Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
 // They never include messages or anything from the encrypted store, only what is typed here plus technical data.
-const BUILD = '2026-10-06 15:16';
+const BUILD = '2026-10-06 15:39';
 const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
 function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
 function noteError(where, e) {
