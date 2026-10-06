@@ -1064,7 +1064,11 @@ function buildChat() {
   });
   ta.value = lsGet('draft') || '';
   ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && matchMedia('(pointer:fine)').matches) { e.preventDefault(); sendText(); } });
-  $('#c-send').onclick = sendText;
+  // Keep the keyboard open when sending, so several messages can be sent in a row.
+  const sendBtn = $('#c-send');
+  sendBtn.addEventListener('mousedown', e => e.preventDefault()); // Android/desktop: the tap doesn't steal focus from the text box
+  sendBtn.addEventListener('touchend', e => { if (document.activeElement === ta) { e.preventDefault(); sendText(); } }); // iPhone: send without the box losing focus
+  sendBtn.onclick = () => { const had = document.activeElement === ta; sendText(); if (had || matchMedia('(pointer:coarse)').matches) ta.focus(); };
   $('#c-att').onclick = attachMenu;
   const onFile = (kind) => async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) prepareMedia(f, kind); };
   $('#f-photo').onchange = onFile('photo');
@@ -1827,7 +1831,7 @@ function runTour() {
 /* ======================= Problem reports to Claude ======================= */
 // Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
 // They never include messages or anything from the encrypted store, only what is typed here plus technical data.
-const BUILD = '2026-10-06 15:39';
+const BUILD = '2026-10-06 23:08';
 const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
 function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
 function noteError(where, e) {
