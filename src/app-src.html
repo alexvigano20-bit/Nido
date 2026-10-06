@@ -258,12 +258,21 @@ details.hist summary::-webkit-details-marker{display:none}
 .viewer .vbody{flex:1;min-height:0;display:grid;place-items:center;padding:8px}
 .viewer canvas,.viewer video{max-width:100%;max-height:100%;border-radius:8px}
 .viewer audio{width:min(420px,90vw)}
-.viewer .vbody{position:relative}
-.viewer .hold{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#000;color:#fff;text-align:center;padding:24px;touch-action:none;user-select:none;-webkit-user-select:none}
-.viewer .hold .ring{width:84px;height:84px;border-radius:50%;border:2px solid rgba(255,255,255,.5);display:grid;place-items:center}
-.viewer .hold .ring svg{width:34px;height:34px}
-.viewer.peek .hold{opacity:0;pointer-events:none}
-.viewer.covered .vbody>*:not(.hold){visibility:hidden}
+.viewer .vbody{position:relative;overflow:hidden}
+.viewer .vbody canvas{touch-action:none;transform-origin:0 0;will-change:transform}
+.viewer.covered .vbody>*{visibility:hidden}
+.cam{position:fixed;inset:0;z-index:70;background:#000;color:#fff;display:flex;flex-direction:column}
+.cam video{flex:1;min-height:0;width:100%;object-fit:cover}
+.cam video.mirror{transform:scaleX(-1)}
+.cam .ctop,.cam .cbot{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+.cam .ctop{top:0;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+.cam .cbot{bottom:0;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+.cam .cbtn{background:rgba(0,0,0,.45);color:#fff;border:0;border-radius:999px;min-width:48px;height:48px;padding:0 16px;font-weight:700;display:grid;place-items:center}
+.cam .cbtn svg{width:24px;height:24px}
+.cam .shutter{width:78px;height:78px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);padding:0}
+.cam .shutter:active{background:#fff}
+.cam .count{position:absolute;inset:0;display:grid;place-items:center;font-size:120px;font-weight:700;text-shadow:0 4px 30px rgba(0,0,0,.6);pointer-events:none}
+.cam .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
 .viewer .vnote{text-align:center;font-size:12.5px;opacity:.7;padding:8px 16px calc(14px + env(safe-area-inset-bottom,0px))}
 
 /* Gate screens */
@@ -375,6 +384,7 @@ const I = {
   copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
   flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  flip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3l-2-3H9L7 7H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2M14 9.5l.4 1.6-1.6.3M10 16.5l-.4-1.6 1.6-.3"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.5 3.7 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.5 0 5.7 3.5 4.5 6.8C19.5 15.4 12 20 12 20z"/></svg>',
 };
 
@@ -885,8 +895,10 @@ function startApp() {
 let popGuard = 0;
 function pushNav(kind) { try { history.pushState({ nido: kind }, ''); } catch {} }
 function popNav(kind) { if (history.state?.nido === kind) { popGuard++; history.back(); } }
+let activeOverlay = null;
 window.addEventListener('popstate', () => {
   if (popGuard) { popGuard--; return; }
+  if (activeOverlay) { const f = activeOverlay; activeOverlay = null; f(); return; }
   if (viewerCleanup) { viewerCleanup(); return; }
   if (sheetEl) { sheetEl.remove(); sheetEl = null; return; }
   if (started && S.tab !== 'home') go('home', true);
@@ -1248,13 +1260,14 @@ async function purge() {
 /* ---------- Attach & media ---------- */
 function attachMenu() {
   sheet('Condividi', `<div class="menu">
-    <button data-pick="f-photo">${I.camera}<div>Scatta una foto<span>Non viene salvata nella tua galleria.</span></div></button>
+    <button id="pick-cam">${I.camera}<div>Scatta una foto<span>Fotocamera del Nido, con autoscatto a scelta. Non finisce in galleria.</span></div></button>
     <button data-pick="f-video">${I.video}<div>Gira un video breve<span>Fino a 30 secondi. Viene compresso prima dell’invio.</span></div></button>
     <button data-pick="f-gal">${I.image}<div>Dalla galleria<span>Foto o video già sul telefono.</span></div></button>
     <button data-pick="f-audio">${I.mic}<div>Vocale<span>Registra o scegli un file audio.</span></div></button>
     <button id="pick-capsule">${I.gift}<div>Capsula<span>Un messaggio che si apre in una data scelta, per esempio quando vi rivedete.</span></div></button>
   </div>`, s => {
     $$('[data-pick]', s).forEach(b => b.onclick = () => { closeSheet(); $('#' + b.dataset.pick).click(); });
+    $('#pick-cam', s).onclick = () => { closeSheet(); setTimeout(openCamera, 60); };
     $('#pick-capsule', s).onclick = () => { closeSheet(); capsuleSheet(); };
   });
 }
@@ -1416,7 +1429,7 @@ async function openMedia(m) {
   const vw = document.createElement('div'); vw.className = 'viewer'; vw.setAttribute('role', 'dialog'); vw.setAttribute('aria-label', MEDIA_LABEL[m.t]);
   vw.innerHTML = `<div class="vbar"><button id="vw-close">Chiudi</button><span class="small" style="opacity:.8">${esc(nameOf(m.from))} · ${hhmm(m.ts)}</span><span id="vw-save-slot"></span></div>
     <div class="vbody" id="vw-body"><p style="opacity:.7">Decifro…</p></div>
-    <div class="vnote">${m.once ? 'Visualizzazione singola: tieni il dito per vedere. Alla chiusura viene distrutto.' : (m.dl ? 'Puoi salvarlo sul telefono.' : 'Solo visione dentro il Nido.')}</div>`;
+    <div class="vnote">${m.once ? 'Visualizzazione singola: alla chiusura viene distrutto. Pizzica per ingrandire.' : (m.dl ? 'Puoi salvarlo sul telefono.' : 'Solo visione dentro il Nido.')}</div>`;
   vw.addEventListener('contextmenu', e => e.preventDefault());
   document.body.appendChild(vw); pushNav('viewer');
   let url = null, blob = null;
@@ -1448,28 +1461,13 @@ async function openMedia(m) {
       c.getContext('2d').drawImage(im, 0, 0); im.src = '';
       body.innerHTML = ''; body.appendChild(c);
     } else if (m.t === 'video') {
-      body.innerHTML = `<video playsinline ${m.once ? '' : 'controls autoplay'} controlslist="nodownload noremoteplayback noplaybackrate" disablepictureinpicture disableremoteplayback></video>`;
+      body.innerHTML = `<video playsinline controls autoplay controlslist="nodownload noremoteplayback noplaybackrate" disablepictureinpicture disableremoteplayback></video>`;
       $('video', body).src = url;
     } else {
       body.innerHTML = `<div class="stack" style="align-items:center;gap:16px"><div class="avatar" style="width:84px;height:84px;font-size:40px">${I.mic.replace('<svg','<svg width="36" height="36"')}</div><audio controls autoplay controlslist="nodownload"></audio></div>`;
       $('audio', body).src = url;
     }
-    // "Private private" content: visible only while a finger is on the screen. Lifting it (e.g. to open the
-    // app switcher or take a screenshot with buttons) hides it instantly, so it never ends up in the recent-apps preview.
-    if (m.once && m.t !== 'audio') {
-      vw.classList.add('covered');
-      const hold = document.createElement('div'); hold.className = 'hold';
-      hold.innerHTML = `<span class="ring">${I.eye}</span><b>Tieni il dito sullo schermo per vedere</b><span class="small" style="opacity:.7">Quando lo alzi si nasconde subito.</span>`;
-      body.appendChild(hold);
-      const vid = $('video', body);
-      const show = e => { e.preventDefault(); vw.classList.add('peek'); vw.classList.remove('covered'); vid?.play().catch(() => {}); };
-      const hide = () => { vw.classList.remove('peek'); vw.classList.add('covered'); vid?.pause(); };
-      body.style.touchAction = 'none';
-      body.addEventListener('pointerdown', show);
-      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => body.addEventListener(ev, hide));
-      window.addEventListener('blur', hide);
-      if (vid) vid.onended = () => { vid.currentTime = 0; };
-    }
+    if (m.t === 'photo') enableZoom(body, $('canvas', body));
     if (m.dl && downloads) {
       const sb = document.createElement('button'); sb.textContent = 'Salva';
       sb.onclick = async () => { try { await downloads.save({ filename: `nido-${ymd(new Date(m.ts))}.${(blob.type.split('/')[1] || 'bin').split(';')[0].replace('jpeg','jpg').replace('quicktime','mov')}`, data: blob }); } catch (e) { if (e?.code !== 'declined') toast('Salvataggio non riuscito.'); } };
@@ -1481,6 +1479,102 @@ async function openMedia(m) {
   }
 }
 function closeViewer() { if (!viewerCleanup) return; viewerCleanup(); popNav('viewer'); }
+
+/* ---------- Pinch to zoom, drag to move, double tap to zoom in/out ---------- */
+function enableZoom(area, el) {
+  if (!el) return;
+  area.style.touchAction = 'none';
+  let scale = 1, tx = 0, ty = 0, lastTap = 0;
+  const pts = new Map(); let start = null;
+  const base = () => { const r = el.getBoundingClientRect(); return { w: r.width / scale, h: r.height / scale, left: r.left - tx, top: r.top - ty }; };
+  const clamp = () => {
+    if (scale <= 1) { scale = 1; tx = 0; ty = 0; return; }
+    const b = base(), maxX = 0, minX = b.w - b.w * scale, maxY = 0, minY = b.h - b.h * scale;
+    tx = Math.min(maxX, Math.max(minX, tx)); ty = Math.min(maxY, Math.max(minY, ty));
+  };
+  const apply = () => { clamp(); el.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; };
+  const zoomAt = (ns, cx, cy) => { const b = base(); const ox = cx - b.left, oy = cy - b.top; tx = ox - (ox - tx) * ns / scale; ty = oy - (oy - ty) * ns / scale; scale = ns; apply(); };
+  area.addEventListener('pointerdown', e => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { area.setPointerCapture(e.pointerId); } catch {}
+    if (pts.size === 1) {
+      const now = Date.now();
+      if (now - lastTap < 300) { zoomAt(scale > 1.2 ? 1 : 2.5, e.clientX, e.clientY); lastTap = 0; } else lastTap = now;
+    }
+    const p = [...pts.values()];
+    start = p.length >= 2 ? { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s: scale, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2, tx, ty } : { x: e.clientX, y: e.clientY, tx, ty };
+  });
+  area.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = [...pts.values()];
+    if (p.length >= 2 && start?.d) {
+      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      const ns = Math.min(5, Math.max(1, start.s * d / start.d));
+      const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
+      tx = start.tx; ty = start.ty; scale = start.s;
+      zoomAt(ns, start.cx, start.cy); tx += cx - start.cx; ty += cy - start.cy; apply();
+    } else if (p.length === 1 && scale > 1 && start && start.x != null) {
+      tx = start.tx + (e.clientX - start.x); ty = start.ty + (e.clientY - start.y); apply();
+    }
+  });
+  const up = e => { pts.delete(e.pointerId); const p = [...pts.values()]; start = p.length === 1 ? { x: p[0].x, y: p[0].y, tx, ty } : null; };
+  area.addEventListener('pointerup', up); area.addEventListener('pointercancel', up);
+  area.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.min(5, Math.max(1, scale * (e.deltaY < 0 ? 1.15 : 0.87))), e.clientX, e.clientY); }, { passive: false });
+}
+
+/* ---------- Nido's own camera: photos never touch the gallery, with a self-timer you choose ---------- */
+const TIMERS = [0, 3, 5, 10];
+async function openCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) { $('#f-photo').click(); return; }
+  let facing = lsGet('camFacing') || 'environment', timer = +(lsGet('camTimer') || 0), stream = null, busy = false, closed = false;
+  const el = document.createElement('div'); el.className = 'cam'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Fotocamera');
+  el.innerHTML = `<video playsinline autoplay muted></video>
+    <div class="ctop"><button class="cbtn" id="cam-x" aria-label="Chiudi">✕</button><button class="cbtn" id="cam-t" aria-label="Autoscatto"></button></div>
+    <div class="count" id="cam-n"></div><div class="flash" id="cam-f"></div>
+    <div class="cbot"><button class="cbtn" id="cam-g" aria-label="Scegli dalla galleria">${I.image}</button><button class="shutter" id="cam-s" aria-label="Scatta"></button><button class="cbtn" id="cam-r" aria-label="Cambia fotocamera">${I.flip}</button></div>`;
+  document.body.appendChild(el); pushNav('camera');
+  const video = $('video', el);
+  const paintTimer = () => { $('#cam-t', el).innerHTML = timer ? `⏱ ${timer} s` : '⏱ No'; };
+  paintTimer();
+  const stop = () => { stream?.getTracks().forEach(t => t.stop()); stream = null; };
+  const close = (viaBack) => { if (closed) return; closed = true; stop(); el.remove(); if (activeOverlay === backClose) activeOverlay = null; if (!viaBack) popNav('camera'); };
+  const backClose = () => close(true);
+  activeOverlay = backClose;
+  const start = async () => {
+    stop();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+      if (closed) return stop();
+      video.srcObject = stream; video.classList.toggle('mirror', facing === 'user');
+      await video.play().catch(() => {});
+    } catch (e) {
+      console.error(e); close();
+      toast(e?.name === 'NotAllowedError' ? 'Serve il permesso per la fotocamera: lo trovi nelle impostazioni del telefono, alla voce Nido.' : 'Non riesco ad aprire la fotocamera: uso quella del telefono.', 5000);
+      if (e?.name !== 'NotAllowedError') $('#f-photo').click();
+    }
+  };
+  $('#cam-x', el).onclick = () => close();
+  $('#cam-t', el).onclick = () => { timer = TIMERS[(TIMERS.indexOf(timer) + 1) % TIMERS.length]; lsSet('camTimer', String(timer)); paintTimer(); };
+  $('#cam-r', el).onclick = () => { facing = facing === 'user' ? 'environment' : 'user'; lsSet('camFacing', facing); start(); };
+  $('#cam-g', el).onclick = () => { close(); $('#f-gal').click(); };
+  $('#cam-s', el).onclick = async () => {
+    if (busy || !stream) return; busy = true;
+    for (let n = timer; n > 0 && !closed; n--) { $('#cam-n', el).textContent = n; await sleep(1000); }
+    $('#cam-n', el).textContent = '';
+    if (closed) return;
+    const w = video.videoWidth, h = video.videoHeight;
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+    if (facing === 'user') { g.translate(w, 0); g.scale(-1, 1); }
+    g.drawImage(video, 0, 0, w, h);
+    const f = $('#cam-f', el); f.style.opacity = 1; setTimeout(() => f.style.opacity = 0, 120);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9)); c.width = c.height = 0;
+    close(); busy = false;
+    if (blob) prepareMedia(new File([blob], 'foto.jpg', { type: 'image/jpeg' }), 'photo');
+  };
+  document.addEventListener('visibilitychange', function vis() { if (document.hidden && !closed) { close(); document.removeEventListener('visibilitychange', vis); } });
+  start();
+}
 
 /* ======================= Calendar ======================= */
 const KINDS = { evento: 'Evento', incontro: 'Ci vediamo', esame: 'Esame', ricorrenza: 'Ricorrenza' };
@@ -1786,7 +1880,7 @@ const TOUR = [
   { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
   { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Scrivete come su WhatsApp, con spunte di lettura. Per rispondere a un messaggio citandolo, scorrilo verso destra. I messaggi si cancellano da soli dopo 30 giorni, o 7 se lo scegliete nelle impostazioni.' },
-  { tab: 'chat', sel: '#c-att', t: 'Foto, video e vocali', p: 'Scatta dalla fotocamera del Nido: non finisce in galleria. Di base si vede una sola volta, tenendo il dito sullo schermo, e poi si distrugge. Chi invia decide se l’altro può salvarlo. C’è anche la Capsula: un messaggio che si apre in una data scelta.' },
+  { tab: 'chat', sel: '#c-att', t: 'Foto, video e vocali', p: 'Scatta dalla fotocamera del Nido: non finisce in galleria. Di base si vede una sola volta e poi si distrugge. Chi invia decide se l’altro può salvarlo. C’è anche la Capsula: un messaggio che si apre in una data scelta.' },
   { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi. Potete scorrere i mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
   { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta sola: l’orario si ripete ogni settimana. Per ogni lezione puoi segnare se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
   { tab: 'todo', sel: '#tab-todo', t: 'Da fare', p: 'Una lista per due. Assegna le cose a uno dei due o a entrambi. Le completate restano nello storico, divise per mese.' },
