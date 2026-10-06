@@ -124,10 +124,24 @@ textarea.input{resize:none}
 .chathead .who b{display:block;font-size:16px}
 .status{font-size:12.5px;color:var(--muted);min-height:18px}
 .status.live{color:var(--ok);font-weight:600}
-.msgs{flex:1;min-height:0;overflow-y:auto;padding:12px 12px 8px;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
+.msgs{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px 12px 8px;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
 .notice{align-self:center;text-align:center;font-size:12px;color:var(--muted);background:var(--surface-2);border-radius:10px;padding:6px 10px;max-width:320px;margin:4px 0 10px}
 .daysep{align-self:center;font-size:12px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 12px;margin:10px 0 6px}
-.bub{max-width:80%;padding:8px 12px 6px;border-radius:18px;position:relative;overflow-wrap:anywhere;white-space:pre-wrap;user-select:text;-webkit-user-select:text}
+.bub{max-width:80%;padding:8px 12px 6px;border-radius:18px;position:relative;overflow-wrap:anywhere;white-space:pre-wrap}
+.bub{touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.bub .swipe-ic{position:absolute;left:-38px;top:50%;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:var(--surface-2);color:var(--muted);display:grid;place-items:center;opacity:0;pointer-events:none}
+.bub .swipe-ic svg{width:16px;height:16px}
+.bub.flash{animation:flash 1.2s ease}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+.quote{display:block;border-left:3px solid var(--accent);background:var(--surface-2);border-radius:8px;padding:5px 8px;margin:0 0 6px;font-size:13px;line-height:1.3;cursor:pointer;white-space:normal;max-width:100%;overflow:hidden}
+.bub.me .quote{background:rgba(255,255,255,.18);border-left-color:var(--me-fg)}
+.quote b{display:block;font-size:12px;font-weight:700}
+.quote span{display:block;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bub.media .quote{margin-bottom:0}
+.bub.media.withq{flex-direction:column;align-items:stretch}
+.bub.media .mrow{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+#reply-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-top:1px solid var(--line)}
+#reply-bar .quote{flex:1;min-width:0;margin:0}
 .bub.me{align-self:flex-end;background:var(--me-bg);color:var(--me-fg);border-bottom-right-radius:6px}
 .bub.them{align-self:flex-start;background:var(--them-bg);color:var(--them-fg);border:1px solid var(--line);border-bottom-left-radius:6px}
 .bub .meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:11px;opacity:.75;margin-top:2px;white-space:nowrap}
@@ -250,6 +264,7 @@ details.hist summary::-webkit-details-marker{display:none}
 .pips i{width:6px;height:6px;border-radius:3px;background:var(--line)}
 .pips i.on{background:var(--accent);width:16px}
 
+.notif-card{border-color:var(--accent)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:90;max-width:calc(100% - 32px);box-shadow:var(--shadow);animation:fade .2s}
 .progress{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
@@ -338,6 +353,9 @@ const I = {
   left:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>',
   right:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
   dots:'<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  reply:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.5 3.7 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.5 0 5.7 3.5 4.5 6.8C19.5 15.4 12 20 12 20z"/></svg>',
 };
 
@@ -558,6 +576,50 @@ downloads = {
   },
 };
 
+/* ======================= Push notifications ======================= */
+const VAPID_PUBLIC = 'BP8eCzgCVvwLw4cc0a-YShpqewiDIEThVa4ZW16i1sC17F7JlyvS1RkXKdjXNvjExCqSdGP2_ABfi_mOMEZHG9Y';
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function pushState() {
+  if (!pushSupported()) return isIOS() && !isStandalone() ? 'ios-browser' : 'unsupported';
+  return Notification.permission; // granted | denied | default
+}
+async function savePushSub(ask) {
+  const reg = await navigator.serviceWorker.ready;
+  let subn = await reg.pushManager.getSubscription();
+  if (!subn) {
+    if (!ask) return false;
+    const raw = atob(VAPID_PUBLIC.replace(/-/g, '+').replace(/_/g, '/'));
+    subn = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, c => c.charCodeAt(0)) });
+  }
+  const j = subn.toJSON();
+  const { error } = await sb.from('push_subs').upsert({ endpoint: j.endpoint, sub: j });
+  if (error) throw error;
+  return true;
+}
+async function enablePush() {
+  const st = pushState();
+  if (st === 'ios-browser') return toast('Su iPhone: prima aggiungi il Nido alla schermata Home (Condividi → Aggiungi alla schermata Home), poi aprilo da lì e attiva le notifiche.', 7000);
+  if (st === 'unsupported') return toast('Questo browser non supporta le notifiche. Su Android usa Chrome.', 5000);
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast('Notifiche non consentite. Puoi attivarle dalle impostazioni del telefono, alla voce Nido.', 6000); renderHome(); return; }
+  try { await savePushSub(true); toast('Notifiche attive'); }
+  catch (e) { console.error(e); toast('Non sono riuscito ad attivare le notifiche. Riprova tra poco.', 5000); }
+  renderHome();
+}
+function pushCard() {
+  const st = pushState();
+  if (st === 'granted' || lsGet('pushHide')) return '';
+  const txt = st === 'ios-browser' ? 'Su iPhone le notifiche funzionano solo dal Nido aggiunto alla schermata Home: Condividi → Aggiungi alla schermata Home, poi aprilo da lì.'
+    : st === 'denied' ? 'Le notifiche sono bloccate. Riattivale dalle impostazioni del telefono (o del browser) per questo sito.'
+    : st === 'unsupported' ? 'Questo browser non supporta le notifiche. Su Android apri il Nido con Chrome.'
+    : 'Ricevi un avviso quando arriva un messaggio. Il testo non compare mai nella notifica.';
+  return `<div class="card stack notif-card"><div class="row" style="gap:12px"><span style="color:var(--accent);display:grid">${I.bell.replace('<svg', '<svg width="24" height="24"')}</span><b style="flex:1">Notifiche</b><button class="link small" id="push-hide">Non ora</button></div>
+    <p class="small muted" style="margin:0">${txt}</p>${st === 'default' ? '<button class="btn" id="push-on">Attiva le notifiche</button>' : ''}</div>`;
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data?.go && started) go(e.data.go); });
+
 /* ======================= Boot & gates ======================= */
 async function boot() {
   if (!window.supabase?.createClient) return gate('nodb');
@@ -724,6 +786,7 @@ function startApp() {
   const initial = (location.hash || '').slice(1);
   go(TABS.some(t => t[0] === initial) ? initial : 'home');
   maybeTour();
+  if (pushState() === 'granted') savePushSub(false).catch(e => console.error('push', e));
 }
 function go(tab) {
   S.tab = tab;
@@ -821,6 +884,8 @@ function renderHome() {
       ${unread ? `<span class="chip acc">${unread} ${unread === 1 ? 'nuovo' : 'nuovi'}</span>` : `<span class="chip">Scrivi</span>`}
     </button>
 
+    ${pushCard()}
+
     ${meet || together != null ? `<div class="${meet && together != null && together >= 0 ? 'grid2' : 'stack'}">
       ${meet ? `<div class="card countdown"><span class="label" style="color:inherit;opacity:.8">Vi rivedete</span>
         <div class="bignum num">${days === 0 ? 'Oggi' : days}</div><div class="small muted">${days === 0 ? esc(meet.title) : (days === 1 ? 'giorno · ' : 'giorni · ') + esc(fmtDate(meet.date))}</div></div>` : ''}
@@ -840,6 +905,8 @@ function renderHome() {
       <div class="list">${up.map(evItem).join('') || '<p class="empty">Nessun evento futuro. Aggiungine uno dal Calendario.</p>'}</div></div>
   </div>`;
   $('#open-settings').onclick = openSettings;
+  const po = $('#push-on'); if (po) po.onclick = enablePush;
+  const ph = $('#push-hide'); if (ph) ph.onclick = () => { lsSet('pushHide', '1'); renderHome(); };
   $('#home-chat').onclick = () => go('chat');
   $$('[data-go]', v).forEach(b => b.onclick = () => go(b.dataset.go));
   wireTodoRows(v); wireEvItems(v);
@@ -858,6 +925,7 @@ function buildChat() {
   $('#v-chat').innerHTML = `<header class="chathead"><div class="avatar" id="c-av"><span id="c-ini"></span><i class="dot" data-dot></i></div>
       <div class="who"><b id="c-name"></b><div class="status" data-status></div></div></header>
     <div class="msgs" id="msgs" aria-live="polite"></div>
+    <div id="reply-bar" hidden></div>
     <div class="composer"><button class="round" id="c-att" aria-label="Allega foto, video, vocale o capsula">${I.plus}</button>
       <textarea id="c-in" rows="1" placeholder="Scrivi un messaggio" aria-label="Messaggio"></textarea>
       <button class="round send" id="c-send" aria-label="Invia">${I.send}</button></div>
@@ -892,12 +960,16 @@ async function sendText(lock) {
 }
 async function sendMsg(inner, mid) {
   const id = Date.now().toString(36) + newId().slice(0, 8);
+  if (S.replyTo && !inner.reply) { inner = { ...inner, reply: S.replyTo }; S.replyTo = null; renderReplyBar(); }
   const ok = await save('msgs/' + id, { from: S.me, ts: Date.now(), seen: null, opened: null, mid: mid || null, enc: await encJSON(inner) });
   if (ok) { scrollChat(true); markSeenSelf(); }
   return ok;
 }
 const unreadCount = () => S.msgs.filter(m => m.from !== S.me && !m.seen).length;
-function renderBadge() { const b = $('#unread'); if (!b) return; const n = unreadCount(); b.hidden = !n; b.textContent = n > 99 ? '99+' : n; }
+function renderBadge() {
+  const b = $('#unread'); if (!b) return; const n = unreadCount(); b.hidden = !n; b.textContent = n > 99 ? '99+' : n;
+  try { n ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.(); } catch {}
+}
 const reading = new Set();
 async function markRead() {
   if (S.tab !== 'chat' || document.hidden) return;
@@ -914,6 +986,8 @@ function renderChat() {
   $('#c-name').textContent = pn;
   $('#c-ini').textContent = (pn || '?')[0].toUpperCase();
   const box = $('#msgs');
+  if ($('#msgs [data-dragging]')) { renderChat.pending = true; return; }
+  renderChat.pending = false;
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
   let html = `<div class="notice">${I.lock.replace('<svg', '<svg width="12" height="12" style="vertical-align:-1px"')} Cifrata end-to-end. I messaggi si cancellano dopo ${S.settings.retention} giorni.</div>`;
   let lastDay = '';
@@ -925,8 +999,14 @@ function renderChat() {
   if (!S.msgs.length) html += `<p class="empty" style="text-align:center;margin-top:30px">Scrivi il primo messaggio a ${esc(pn)}.</p>`;
   html += `<div id="typing-slot"></div>`;
   box.innerHTML = html;
-  $$('[data-open]', box).forEach(b => b.onclick = () => openMedia(S.msgs.find(m => m.id === b.dataset.open)));
-  $$('.bub.me', box).forEach(b => longPress(b, () => msgMenu(S.msgs.find(m => m.id === b.dataset.id))));
+  $$('[data-open]', box).forEach(b => b.onclick = e => { if (b.dataset.swiped) { delete b.dataset.swiped; return; } if (e.target.closest('.quote')) return; openMedia(S.msgs.find(m => m.id === b.dataset.open)); });
+  $$('.bub[data-id]', box).forEach(b => {
+    const m = () => S.msgs.find(x => x.id === b.dataset.id);
+    longPress(b, () => msgMenu(m()));
+    swipeToReply(b, () => setReply(m()));
+  });
+  $$('.quote[data-jump]', box).forEach(q => q.onclick = e => { e.stopPropagation(); jumpTo(q.dataset.jump); });
+  $$('[data-open]', box).forEach(b => b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } });
   renderTyping();
   if (nearBottom) scrollChat();
   renderStatus();
@@ -935,15 +1015,27 @@ function renderTyping() { const s = $('#typing-slot'); if (!s) return; s.innerHT
 function scrollChat(force) { const b = $('#msgs'); if (b) requestAnimationFrame(() => { b.scrollTop = b.scrollHeight; }); }
 function ticks(m) { if (m.from !== S.me) return ''; return m.seen ? `<span title="Letto" style="color:inherit">${I.dcheck}</span>` : `<span title="Consegnato">${I.check}</span>`; }
 const MEDIA_LABEL = { photo: 'Foto', video: 'Video', audio: 'Vocale' };
+function previewOf(m) {
+  if (!m) return '';
+  if (isSealed(m)) return 'Capsula sigillata';
+  if (m.t === 'text') return (m.lock ? 'Capsula · ' : '') + String(m.text || '').replace(/\s+/g, ' ').slice(0, 90);
+  return (MEDIA_LABEL[m.t] || 'Contenuto') + (m.once ? ' · una volta' : '');
+}
+function quoteHtml(r) {
+  if (!r) return '';
+  return `<span class="quote" data-jump="${esc(r.id)}"><b>${esc(r.from === S.me ? 'Tu' : nameOf(r.from))}</b><span>${esc(r.p)}</span></span>`;
+}
 function bubble(m) {
   const mine = m.from === S.me, cls = mine ? 'me' : 'them';
   const meta = `<span class="meta num">${hhmm(m.ts)} ${ticks(m)}</span>`;
+  const sw = `<span class="swipe-ic" aria-hidden="true">${I.reply}</span>`;
+  const q = quoteHtml(m.reply);
   if (isSealed(m)) {
-    return `<div class="bub ${cls} media sealed" data-id="${esc(m.id)}"><span class="ic">${I.gift}</span><span class="tx"><b>Capsula sigillata</b>
-      <span>Si apre ${esc(dayLabel(parseYmd(m.lock)).toLowerCase())}</span>${meta}</span></div>`;
+    return `<div class="bub ${cls} media sealed ${q ? 'withq' : ''}" data-id="${esc(m.id)}">${sw}${q}<span class="mrow"><span class="ic">${I.gift}</span><span class="tx"><b>Capsula sigillata</b>
+      <span>Si apre ${esc(dayLabel(parseYmd(m.lock)).toLowerCase())}</span>${meta}</span></span></div>`;
   }
   if (m.t === 'text') {
-    return `<div class="bub ${cls}" data-id="${esc(m.id)}">${m.lock ? `<span class="tiny" style="opacity:.8;display:block">${I.gift.replace('<svg','<svg width="12" height="12" style="vertical-align:-1px"')} Capsula del ${esc(fmtDate(m.lock))}</span>` : ''}${esc(m.text)}${meta}</div>`;
+    return `<div class="bub ${cls}" data-id="${esc(m.id)}">${sw}${q}${m.lock ? `<span class="tiny" style="opacity:.8;display:block">${I.gift.replace('<svg','<svg width="12" height="12" style="vertical-align:-1px"')} Capsula del ${esc(fmtDate(m.lock))}</span>` : ''}${esc(m.text)}${meta}</div>`;
   }
   const label = MEDIA_LABEL[m.t] || 'File';
   const icon = { photo: I.camera, video: I.video, audio: I.mic }[m.t] || I.image;
@@ -952,20 +1044,74 @@ function bubble(m) {
   else if (m.once && mine) { sub = 'Visualizzazione singola · non ancora visto'; can = false; }
   else if (m.once) { sub = 'Tocca per vedere · una sola volta'; }
   else sub = (m.dl ? 'Salvabile' : 'Solo visione') + (m.size ? ' · ' + kb(m.size) : '');
-  return `<button class="bub ${cls} media ${can ? '' : 'spent'}" data-id="${esc(m.id)}" ${can ? `data-open="${esc(m.id)}"` : 'disabled'}>
-    <span class="ic">${m.once ? I.eye : icon}</span><span class="tx"><b>${label}${m.once ? ' · una volta' : ''}</b><span>${esc(sub)}</span>${meta}</span></button>`;
+  return `<div role="button" tabindex="0" class="bub ${cls} media ${can ? '' : 'spent'} ${q ? 'withq' : ''}" data-id="${esc(m.id)}" ${can ? `data-open="${esc(m.id)}"` : 'aria-disabled="true"'}>${sw}${q}
+    <span class="mrow"><span class="ic">${m.once ? I.eye : icon}</span><span class="tx"><b>${label}${m.once ? ' · una volta' : ''}</b><span>${esc(sub)}</span>${meta}</span></span></div>`;
 }
 function longPress(el, fn) {
-  let t = null;
-  el.addEventListener('pointerdown', () => { t = setTimeout(fn, 550); });
-  ['pointerup','pointerleave','pointercancel','pointermove'].forEach(ev => el.addEventListener(ev, e => { if (ev !== 'pointermove' || Math.abs(e.movementY) > 4) clearTimeout(t); }));
-  el.addEventListener('contextmenu', e => { e.preventDefault(); fn(); });
+  let t = null, x0 = 0, y0 = 0;
+  el.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; clearTimeout(t); t = setTimeout(() => { if (!el.dataset.dragging) fn(); }, 550); });
+  el.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - x0, e.clientY - y0) > 6) clearTimeout(t); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, () => clearTimeout(t)));
+  el.addEventListener('contextmenu', e => { e.preventDefault(); clearTimeout(t); fn(); });
+}
+// Swipe a message to the right to reply to it, as on WhatsApp.
+function swipeToReply(el, fn) {
+  let x0 = 0, y0 = 0, dx = 0, mode = null, id = null;
+  const ic = $('.swipe-ic', el);
+  const reset = () => { el.style.transition = 'transform .18s ease'; el.style.transform = ''; if (ic) { ic.style.transition = 'opacity .18s'; ic.style.opacity = 0; } setTimeout(() => { el.style.transition = ''; delete el.dataset.dragging; }, 200); };
+  el.addEventListener('pointerdown', e => { if (e.button > 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; mode = null; id = e.pointerId; });
+  el.addEventListener('pointermove', e => {
+    if (e.pointerId !== id || mode === 'v') return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!mode) {
+      if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+      mode = mx > 0 && Math.abs(mx) > Math.abs(my) * 1.3 ? 'h' : 'v';
+      if (mode === 'h') { el.dataset.dragging = '1'; try { el.setPointerCapture(id); } catch {} }
+      else return;
+    }
+    dx = Math.max(0, Math.min(90, mx));
+    el.style.transform = `translateX(${dx}px)`;
+    if (ic) { ic.style.transition = ''; ic.style.opacity = Math.min(1, dx / 60); }
+    if (dx >= 60 && !el.dataset.armed) { el.dataset.armed = '1'; try { navigator.vibrate?.(12); } catch {} }
+    if (dx < 60) delete el.dataset.armed;
+  });
+  const end = e => {
+    if (e.pointerId !== id) return; id = null;
+    if (mode === 'h') { el.dataset.swiped = '1'; setTimeout(() => delete el.dataset.swiped, 400); if (dx >= 60) fn(); reset(); setTimeout(() => { if (renderChat.pending) renderChat(); }, 220); }
+    delete el.dataset.armed; mode = null;
+  };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+function setReply(m) {
+  if (!m) return;
+  S.replyTo = { id: m.id, from: m.from, p: previewOf(m) };
+  renderReplyBar();
+  const ta = $('#c-in'); if (ta) ta.focus();
+}
+function renderReplyBar() {
+  const bar = $('#reply-bar'); if (!bar) return;
+  const r = S.replyTo;
+  bar.hidden = !r;
+  bar.innerHTML = r ? `${quoteHtml(r).replace(/<b>[^<]*<\/b>/, `<b>${r.from === S.me ? 'Rispondi al tuo messaggio' : (/^[aA]/.test(nameOf(r.from)) ? 'Rispondi ad ' : 'Rispondi a ') + esc(nameOf(r.from))}</b>`)}<button class="iconbtn" id="reply-x" aria-label="Annulla risposta">×</button>` : '';
+  if (r) { $('#reply-x').onclick = () => { S.replyTo = null; renderReplyBar(); }; $('.quote', bar).onclick = () => jumpTo(r.id); }
+}
+function jumpTo(id) {
+  const el = $(`#msgs .bub[data-id="${CSS.escape(id)}"]`);
+  if (!el) return toast('Il messaggio originale non c’è più.');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 function msgMenu(m) {
   if (!m) return;
-  sheet('Messaggio', `<div class="menu"><button id="mm-del">${I.lock}<div>Elimina per entrambi<span>Il messaggio e l’eventuale contenuto spariscono anche dal suo telefono.</span></div></button></div>
-    <button class="btn ghost block" data-close>Annulla</button>`, s => {
-    $('#mm-del', s).onclick = async () => { closeSheet(); await deleteMsg(m); };
+  const mine = m.from === S.me, isText = m.t === 'text' && !isSealed(m);
+  sheet('Messaggio', `<div class="menu">
+    <button id="mm-rep">${I.reply}<div>Rispondi<span>Cita questo messaggio nella risposta. Puoi anche scorrerlo verso destra.</span></div></button>
+    ${isText ? `<button id="mm-copy">${I.copy}<div>Copia testo</div></button>` : ''}
+    ${mine ? `<button id="mm-del">${I.lock}<div>Elimina per entrambi<span>Il messaggio e l’eventuale contenuto spariscono anche dal suo telefono.</span></div></button>` : ''}
+    </div><button class="btn ghost block" data-close>Annulla</button>`, s => {
+    $('#mm-rep', s).onclick = () => { closeSheet(); setReply(m); };
+    const c = $('#mm-copy', s); if (c) c.onclick = async () => { closeSheet(); try { await navigator.clipboard.writeText(m.text); toast('Copiato'); } catch { toast('Non riesco a copiare.'); } };
+    const d = $('#mm-del', s); if (d) d.onclick = async () => { closeSheet(); await deleteMsg(m); };
   });
 }
 async function deleteMsg(m) {
@@ -1434,6 +1580,7 @@ function openSettings() {
       <span class="tiny muted">Vale per entrambi. Le capsule restano finché non si aprono.</span></div>
     <label class="field"><span>Insieme dal</span><div class="row"><input class="input" type="date" id="st-ann" value="${esc(S.secure.anniversary || '')}"><button class="btn ghost" id="st-ann-go">Salva</button></div></label>
     <div class="menu">
+      <button id="st-push">${I.bell}<div>Notifiche<span>${{ granted: 'Attive su questo telefono', denied: 'Bloccate dalle impostazioni del telefono', default: 'Tocca per attivarle', 'ios-browser': 'Aggiungi prima il Nido alla schermata Home', unsupported: 'Non supportate da questo browser' }[pushState()]}</span></div></button>
       <button id="st-tour">${I.heart}<div>Rivedi il tour<span>La presentazione delle funzioni.</span></div></button>
       <button id="st-lock">${I.lock}<div>Blocca il Nido su questo telefono<span>Per riaprirlo servirà la frase segreta.</span></div></button>
       <button id="st-out">${I.left}<div>Esci dall’account<span>${esc(S.email || '')}</span></div></button>
@@ -1445,6 +1592,7 @@ function openSettings() {
     $('#st-name-go', s).onclick = async () => { const n = $('#st-name', s).value.trim(); if (!n) return; await save('profiles/' + S.me, { enc: await encJSON({ name: n }) }); toast('Nome salvato'); };
     $$('#st-ret button', s).forEach(b => b.onclick = async () => { $$('#st-ret button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); await saveSettings({ retention: +b.dataset.r }); purge(); toast(`La chat ora dura ${b.dataset.r} giorni`); });
     $('#st-ann-go', s).onclick = async () => { await saveSettings({}, { anniversary: $('#st-ann', s).value || null }); toast('Data salvata'); };
+    $('#st-push', s).onclick = () => { closeSheet(); lsSet('pushHide', null); enablePush(); };
     $('#st-tour', s).onclick = () => { closeSheet(); go('home'); setTimeout(runTour, 250); };
     $('#st-lock', s).onclick = async () => { closeSheet(); await keyStore('del'); KEY = null; location.reload(); };
     $('#st-out', s).onclick = () => { closeSheet(); signOut(); };
@@ -1480,7 +1628,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewer
 const TOUR = [
   { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
-  { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Scrivete come su WhatsApp, con spunte di lettura. I messaggi si cancellano da soli dopo 30 giorni, o 7 se lo scegliete nelle impostazioni.' },
+  { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Scrivete come su WhatsApp, con spunte di lettura. Per rispondere a un messaggio citandolo, scorrilo verso destra. I messaggi si cancellano da soli dopo 30 giorni, o 7 se lo scegliete nelle impostazioni.' },
   { tab: 'chat', sel: '#c-att', t: 'Foto, video e vocali', p: 'Scatta dalla fotocamera del Nido: non finisce in galleria. Di base si vede una sola volta e poi si distrugge. Chi invia decide se l’altro può salvarlo. C’è anche la Capsula: un messaggio che si apre in una data scelta.' },
   { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi. Potete scorrere i mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
   { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta sola: l’orario si ripete ogni settimana. Per ogni lezione puoi segnare se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
