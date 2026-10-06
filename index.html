@@ -929,6 +929,7 @@ function subscribeAll() {
   live(db.collection('msgs').orderBy('ts', 'desc').limit(800), l => {
     S.msgs = l.reverse(); renderBadge(); if (S.tab === 'chat') { renderChat(); markRead(); } else renderHome();
     if (!purged) { purged = true; purge(); }
+    reportDelivered();
   });
   live(db.collection('events'), l => { S.events = l; renderAll(); });
   live(db.collection('todos'), l => { S.todos = l; renderAll(); });
@@ -1828,10 +1829,23 @@ function runTour() {
   show();
 }
 
+/* ---------- Delivery timing: tells the server when a message from the other person reached this app ---------- */
+const deliveredSeen = new Set((() => { try { return JSON.parse(lsGet('dlv') || '[]'); } catch { return []; } })());
+function reportDelivered() {
+  if (!sb || !S.me) return;
+  const cutoff = Date.now() - 86400000; let changed = false;
+  for (const m of S.msgs) {
+    if (m.from === S.me || m.ts < cutoff || deliveredSeen.has(m.id)) continue;
+    deliveredSeen.add(m.id); changed = true;
+    sb.rpc('msg_delivered', { p_path: 'msgs/' + m.id }).then(() => {}, () => {});
+  }
+  if (changed) lsSet('dlv', JSON.stringify([...deliveredSeen].slice(-300)));
+}
+
 /* ======================= Problem reports to Claude ======================= */
 // Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
 // They never include messages or anything from the encrypted store, only what is typed here plus technical data.
-const BUILD = '2026-10-06 23:08';
+const BUILD = '2026-10-06 23:14';
 const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
 function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
 function noteError(where, e) {
