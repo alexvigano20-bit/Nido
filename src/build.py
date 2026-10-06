@@ -1,7 +1,10 @@
 import sys
 src = open('app-src.html').read()
 url, key = sys.argv[1], sys.argv[2]
-src = src.replace('__SB_URL__', url).replace('__SB_KEY__', key)
+import datetime
+src = src.replace('__SB_URL__', url).replace('__SB_KEY__', key).replace('__BUILD__', datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
+sw = open('site/sw.tpl.js').read().replace('__SB_URL__', url).replace('__SB_KEY__', key)
+open('site/sw.js','w').write(sw)
 i = src.index('<div id="app">')
 head, body = src[:i], src[i:]
 html = f'''<!doctype html>

@@ -32,6 +32,18 @@
   --shadow:0 10px 30px rgba(0,0,0,.5); --scrim:rgba(0,0,0,.6); color-scheme:dark}
 
 html,body{height:100%}
+html{-webkit-text-size-adjust:100%}
+.input,select.input,textarea.input,.composer textarea,input,textarea,select{font-size:16px}
+button,a,[role=button]{touch-action:manipulation}
+#app{height:var(--app-h,100%)}
+body.kb #tabbar{display:none}
+body.veil #app,body.veil .viewer,body.veil .scrim{filter:blur(22px)}
+.bub a{color:inherit;text-decoration:underline;overflow-wrap:anywhere}
+.lock{position:fixed;inset:0;z-index:95;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.lock .box{width:100%;max-width:320px;display:flex;flex-direction:column;gap:16px;text-align:center}
+.lock input{text-align:center;letter-spacing:.5em;font-size:24px}
+.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent;overflow:hidden}
 *{box-sizing:border-box}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -45,7 +57,7 @@ h1,h2,h3{margin:0;font-weight:400;text-wrap:balance}
 .label{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .num{font-variant-numeric:tabular-nums}
 
-#app{height:100%;display:flex;flex-direction:column}
+#app{display:flex;flex-direction:column}
 #main{flex:1;min-height:0;position:relative}
 .view{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding:16px 16px 24px;-webkit-overflow-scrolling:touch}
 .view.chat{padding:0;overflow:hidden;display:flex;flex-direction:column}
@@ -356,6 +368,7 @@ const I = {
   reply:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
   copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
+  flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.5 3.7 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.5 0 5.7 3.5 4.5 6.8C19.5 15.4 12 20 12 20z"/></svg>',
 };
 
@@ -430,7 +443,7 @@ function errMsg(e) {
 }
 async function save(path, data, merge = false) {
   try { await withRetry(() => merge ? db.doc(path).update(data) : db.doc(path).set(data)); return true; }
-  catch (e) { console.error(e); toast(errMsg(e), 4000); return false; }
+  catch (e) { console.error(e); noteError('save ' + path.split('/')[0], e); toast(errMsg(e), 4000); return false; }
 }
 async function del(path) { try { await withRetry(() => db.doc(path).delete()); } catch (e) { console.error(e); } }
 
@@ -594,7 +607,8 @@ async function savePushSub(ask) {
     subn = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, c => c.charCodeAt(0)) });
   }
   const j = subn.toJSON();
-  const { error } = await sb.from('push_subs').upsert({ endpoint: j.endpoint, sub: j });
+  let { error } = await sb.from('push_subs').upsert({ endpoint: j.endpoint, sub: j, device: deviceName() });
+  if (error && /device|column/i.test(error.message || '')) ({ error } = await sb.from('push_subs').upsert({ endpoint: j.endpoint, sub: j }));
   if (error) throw error;
   return true;
 }
@@ -696,7 +710,7 @@ function gate(kind) {
         location.reload();
       } catch (err) {
         const m = String(err?.message || '');
-        $('#g-err').textContent = /invalid login/i.test(m) ? 'Email o password non corretti.' : /already registered/i.test(m) ? 'Questa email ha già un account: scegli “Ho già un account”.' : /confirm/i.test(m) ? 'L’email non è confermata: in Supabase va spenta l’opzione “Confirm email”.' : /password/i.test(m) ? 'La password deve avere almeno 8 caratteri.' : 'Non riesco a collegarmi. Riprova tra poco.';
+        $('#g-err').textContent = /invalid login/i.test(m) ? 'Email o password non corretti.' : /signup|sign up|not allowed/i.test(m) ? 'Le registrazioni sono chiuse: il Nido ha già i suoi due account.' : /already registered/i.test(m) ? 'Questa email ha già un account: scegli “Ho già un account”.' : /confirm/i.test(m) ? 'L’email non è confermata: in Supabase va spenta l’opzione “Confirm email”.' : /password/i.test(m) ? 'La password deve avere almeno 8 caratteri.' : 'Non riesco a collegarmi. Riprova tra poco.';
         $('#a-go').disabled = false;
       }
     };
@@ -758,6 +772,76 @@ function gate(kind) {
   }
 }
 
+/* ======================= Phone niceties ======================= */
+// Keep the app exactly the size of the visible area (iPhone keyboard otherwise pushes the composer off-screen).
+function fitViewport() {
+  const vv = window.visualViewport; if (!vv) return;
+  document.documentElement.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+  if (vv.offsetTop || window.scrollY) window.scrollTo(0, 0);
+  if (S.tab === 'chat') scrollChat();
+}
+window.visualViewport?.addEventListener('resize', fitViewport);
+window.visualViewport?.addEventListener('scroll', () => { if (window.scrollY) window.scrollTo(0, 0); });
+document.addEventListener('focusin', e => { if (e.target.id === 'c-in') document.body.classList.add('kb'); });
+document.addEventListener('focusout', e => { if (e.target.id === 'c-in') setTimeout(() => { if (document.activeElement?.id !== 'c-in') document.body.classList.remove('kb'); }, 120); });
+// Hide content from the app switcher and from people glancing when you leave the app.
+const veil = on => document.body.classList.toggle('veil', on);
+document.addEventListener('visibilitychange', () => veil(document.hidden));
+window.addEventListener('pagehide', () => veil(true));
+window.addEventListener('pageshow', () => veil(false));
+const linkify = html => html.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, u => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+
+/* ---------- Unlock code (optional): asked when opening and after 1 minute away ---------- */
+let hiddenAt = 0, lockOpen = false;
+const pinInfo = () => { try { return JSON.parse(lsGet('pin') || 'null'); } catch { return null; } };
+async function pinHash(pin, salt) {
+  const k = await crypto.subtle.importKey('raw', TE.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  return b64(new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: b64d(salt), iterations: 150000, hash: 'SHA-256' }, k, 256)));
+}
+function showLock() {
+  const info = pinInfo(); if (!info || lockOpen) return;
+  lockOpen = true; closeViewer();
+  const el = document.createElement('div'); el.className = 'lock'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Nido bloccato');
+  el.innerHTML = `<form class="box" id="lk-f"><div class="mark serif" style="font-size:48px;color:var(--accent)">Nido</div><p class="muted" style="margin:0">Inserisci il codice di sblocco</p>
+    <input class="input" id="lk-in" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" aria-label="Codice">
+    <button class="btn">Sblocca</button><p class="small" id="lk-err" style="color:var(--danger);min-height:18px"></p>
+    <button type="button" class="link small" id="lk-forgot">Ho dimenticato il codice</button></form>`;
+  document.body.appendChild(el);
+  setTimeout(() => $('#lk-in', el).focus(), 50);
+  $('#lk-forgot', el).onclick = async () => { lsSet('pin', null); lsSet('pinFails', null); await keyStore('del'); location.reload(); };
+  $('#lk-f', el).onsubmit = async e => {
+    e.preventDefault();
+    const v = $('#lk-in', el).value;
+    if (await pinHash(v, info.salt) === info.hash) { lsSet('pinFails', null); el.remove(); lockOpen = false; return; }
+    const fails = +(lsGet('pinFails') || 0) + 1; lsSet('pinFails', String(fails));
+    if (fails >= 8) { lsSet('pin', null); lsSet('pinFails', null); await keyStore('del'); location.reload(); return; }
+    $('#lk-err', el).textContent = `Codice errato. Ancora ${8 - fails} tentativi, poi servirà la frase segreta.`;
+    $('#lk-in', el).value = ''; const f = $('#lk-f', el); f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+  };
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (started && hiddenAt && Date.now() - hiddenAt > 60_000) showLock();
+});
+function pinSheet() {
+  const has = !!pinInfo();
+  sheet('Codice di sblocco', `<p class="muted small" style="margin:0">Un codice di 4–8 cifre chiesto quando apri il Nido e quando ci torni dopo più di un minuto. Vale solo su questo telefono.</p>
+    ${has ? '<button class="btn danger block" id="pn-off">Togli il codice</button>' : ''}
+    <label class="field"><span>${has ? 'Nuovo codice' : 'Codice'}</span><input class="input" id="pn-1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></label>
+    <label class="field"><span>Ripeti il codice</span><input class="input" id="pn-2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></label>
+    <div class="actions"><button class="btn ghost" data-close>Annulla</button><button class="btn" id="pn-go">Salva</button></div>`, sh => {
+    const off = $('#pn-off', sh); if (off) off.onclick = () => { lsSet('pin', null); closeSheet(); toast('Codice tolto'); };
+    $('#pn-go', sh).onclick = async () => {
+      const a = $('#pn-1', sh).value, b = $('#pn-2', sh).value;
+      if (!/^\d{4,8}$/.test(a)) return toast('Il codice deve avere da 4 a 8 cifre.');
+      if (a !== b) return toast('I due codici non coincidono.');
+      const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+      lsSet('pin', JSON.stringify({ salt, hash: await pinHash(a, salt) })); lsSet('pinFails', null);
+      closeSheet(); toast('Codice impostato');
+    };
+  });
+}
+
 /* ======================= App shell ======================= */
 const TABS = [['home','Home',I.home],['chat','Chat',I.chat],['cal','Calendario',I.cal],['lez','Lezioni',I.uni],['todo','Da fare',I.todo]];
 let started = false;
@@ -786,9 +870,24 @@ function startApp() {
   const initial = (location.hash || '').slice(1);
   go(TABS.some(t => t[0] === initial) ? initial : 'home');
   maybeTour();
+  fitViewport();
+  if (pinInfo()) showLock();
   if (pushState() === 'granted') savePushSub(false).catch(e => console.error('push', e));
 }
-function go(tab) {
+let popGuard = 0;
+function pushNav(kind) { try { history.pushState({ nido: kind }, ''); } catch {} }
+function popNav(kind) { if (history.state?.nido === kind) { popGuard++; history.back(); } }
+window.addEventListener('popstate', () => {
+  if (popGuard) { popGuard--; return; }
+  if (viewerCleanup) { viewerCleanup(); return; }
+  if (sheetEl) { sheetEl.remove(); sheetEl = null; return; }
+  if (started && S.tab !== 'home') go('home', true);
+});
+function go(tab, fromPop) {
+  if (!fromPop && started) {
+    if (tab !== 'home' && S.tab === 'home') pushNav('tab');
+    else if (tab === 'home' && history.state?.nido === 'tab') popNav('tab');
+  }
   S.tab = tab;
   TABS.forEach(([k]) => { $('#v-' + k).hidden = k !== tab; $('#tab-' + k).setAttribute('aria-current', k === tab ? 'page' : 'false'); });
   renderTab(tab);
@@ -876,7 +975,7 @@ function renderHome() {
   v.innerHTML = `<div class="wrap">
     <div class="phead"><div class="hero"><span class="label">${esc(dayLabel(Date.now()))} · ${new Date().getDate()} ${MESI[new Date().getMonth()]}</span>
       <h1 class="hi">${hello},<br><em>${esc(me)}</em></h1></div>
-      <button class="iconbtn" id="open-settings" aria-label="Impostazioni">${I.gear}</button></div>
+      <div class="row" style="gap:8px"><button class="iconbtn" id="open-report" aria-label="Segnala un problema" title="Segnala un problema">${I.flag}</button><button class="iconbtn" id="open-settings" aria-label="Impostazioni">${I.gear}</button></div></div>
 
     <button class="card partner" id="home-chat" style="text-align:left;width:100%">
       <div class="avatar">${esc((pn || '?')[0].toUpperCase())}<i class="dot" data-dot></i></div>
@@ -905,6 +1004,7 @@ function renderHome() {
       <div class="list">${up.map(evItem).join('') || '<p class="empty">Nessun evento futuro. Aggiungine uno dal Calendario.</p>'}</div></div>
   </div>`;
   $('#open-settings').onclick = openSettings;
+  $('#open-report').onclick = () => reportSheet();
   const po = $('#push-on'); if (po) po.onclick = enablePush;
   const ph = $('#push-hide'); if (ph) ph.onclick = () => { lsSet('pushHide', '1'); renderHome(); };
   $('#home-chat').onclick = () => go('chat');
@@ -1005,6 +1105,7 @@ function renderChat() {
     longPress(b, () => msgMenu(m()));
     swipeToReply(b, () => setReply(m()));
   });
+  $$('.bub a', box).forEach(a => a.addEventListener('click', e => e.stopPropagation()));
   $$('.quote[data-jump]', box).forEach(q => q.onclick = e => { e.stopPropagation(); jumpTo(q.dataset.jump); });
   $$('[data-open]', box).forEach(b => b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } });
   renderTyping();
@@ -1035,7 +1136,7 @@ function bubble(m) {
       <span>Si apre ${esc(dayLabel(parseYmd(m.lock)).toLowerCase())}</span>${meta}</span></span></div>`;
   }
   if (m.t === 'text') {
-    return `<div class="bub ${cls}" data-id="${esc(m.id)}">${sw}${q}${m.lock ? `<span class="tiny" style="opacity:.8;display:block">${I.gift.replace('<svg','<svg width="12" height="12" style="vertical-align:-1px"')} Capsula del ${esc(fmtDate(m.lock))}</span>` : ''}${esc(m.text)}${meta}</div>`;
+    return `<div class="bub ${cls}" data-id="${esc(m.id)}">${sw}${q}${m.lock ? `<span class="tiny" style="opacity:.8;display:block">${I.gift.replace('<svg','<svg width="12" height="12" style="vertical-align:-1px"')} Capsula del ${esc(fmtDate(m.lock))}</span>` : ''}${linkify(esc(m.text))}${meta}</div>`;
   }
   const label = MEDIA_LABEL[m.t] || 'File';
   const icon = { photo: I.camera, video: I.video, audio: I.mic }[m.t] || I.image;
@@ -1171,30 +1272,39 @@ const MAX_BYTES = 25e6;
 async function prepareMedia(file, kind) {
   if (kind === 'auto') kind = file.type.startsWith('video') ? 'video' : 'photo';
   if (kind === 'photo' && !file.type.startsWith('image')) kind = file.type.startsWith('video') ? 'video' : kind;
-  const isAudio = kind === 'audio';
-  sheet(MEDIA_LABEL[kind], `<div id="pm-body" class="stack"><p class="muted">Preparo ${kind === 'video' ? 'il video' : kind === 'audio' ? 'il vocale' : 'la foto'}…</p><div class="progress"><i id="pm-bar"></i></div></div>`, () => {}, { lock: true });
+  const isAudio = kind === 'audio', isVideo = kind === 'video';
   let blob = null, info = '';
-  try {
-    if (kind === 'photo') blob = await compressImage(file);
-    else if (kind === 'video') blob = await compressVideo(file, p => { const b = $('#pm-bar'); if (b) b.style.width = Math.round(p * 100) + '%'; });
-    else blob = file;
-  } catch (e) { console.error(e); blob = null; info = e?.message || ''; }
-  if (!blob) { closeSheet(true); return toast(info || 'Non riesco a leggere questo file.', 4000); }
-  if (blob.size > MAX_BYTES) { closeSheet(true); return toast(`Troppo pesante (${kb(blob.size)}). Il limite è 25 MB: prova un video più corto.`, 4500); }
-  closeSheet(true);
-  sheet(MEDIA_LABEL[kind], `<p class="muted" style="margin:0">${MEDIA_LABEL[kind]} ${kind === 'photo' ? 'pronta' : 'pronto'} · ${kb(blob.size)}. Tu non ne conservi una copia: resta solo cifrato finché ${esc(partnerName())} non lo apre.</p>
+  if (kind === 'photo') {
+    sheet(MEDIA_LABEL[kind], `<p class="muted">Preparo la foto…</p>`, () => {}, { lock: true });
+    try { blob = await compressImage(file); } catch (e) { console.error(e); info = e?.message || ''; }
+  } else blob = file;
+  if (!blob) { closeSheet(); return toast(info || 'Non riesco a leggere questo file.', 4000); }
+  // Videos are compressed when you tap "Invia": iPhones only allow video+audio processing right after a tap.
+  if (!isVideo && blob.size > MAX_BYTES) { closeSheet(); return toast(`Troppo pesante (${kb(blob.size)}). Il limite è 25 MB.`, 4500); }
+  const label = MEDIA_LABEL[kind];
+  sheet(label, `<p class="muted" style="margin:0">${isVideo ? `Video · ${kb(blob.size)}. Lo comprimo all’invio.` : `${label} ${kind === 'photo' ? 'pronta' : 'pronto'} · ${kb(blob.size)}.`} Tu non ne conservi una copia: resta solo cifrato finché ${esc(partnerName())} non lo apre.</p>
     <label class="check"><input type="checkbox" id="o-once" ${isAudio ? '' : 'checked'}><span><b>Visualizzazione singola</b><br><span class="small muted">Dopo che lo apre viene distrutto, per entrambi.</span></span></label>
     <label class="check"><input type="checkbox" id="o-dl"><span><b>Può salvarlo sul telefono</b><br><span class="small muted">Spento: può solo guardarlo dentro il Nido.</span></span></label>
     ${lockOptions()}
-    <div id="pm-prog" hidden class="stack"><p class="small muted" style="margin:0">Cifro e invio…</p><div class="progress"><i id="pm-bar2"></i></div></div>
-    <div class="actions" id="pm-act"><button class="btn ghost" id="pm-cancel">Annulla</button><button class="btn" id="pm-go">Invia</button></div>`, s => {
-    wireLock(s);
-    $('#pm-cancel', s).onclick = () => { blob = null; closeSheet(true); };
-    $('#pm-go', s).onclick = async () => {
-      $('#pm-act', s).hidden = true; $('#pm-prog', s).hidden = false;
-      const lock = $('#o-lock', s).value;
-      const ok = await uploadMedia(blob, kind, { once: $('#o-once', s).checked, dl: $('#o-dl', s).checked, lock: lock && lock > today() ? lock : undefined }, p => { const b = $('#pm-bar2'); if (b) b.style.width = Math.round(p * 100) + '%'; });
-      blob = null; closeSheet(true);
+    <div id="pm-prog" hidden class="stack"><p class="small muted" style="margin:0" id="pm-step">Cifro e invio…</p><div class="progress"><i id="pm-bar2"></i></div></div>
+    <div class="actions" id="pm-act"><button class="btn ghost" id="pm-cancel">Annulla</button><button class="btn" id="pm-go">Invia</button></div>`, sh => {
+    wireLock(sh);
+    $('#pm-cancel', sh).onclick = () => { blob = null; closeSheet(); };
+    $('#pm-go', sh).onclick = async () => {
+      const bar = p => { const b = $('#pm-bar2'); if (b) b.style.width = Math.round(p * 100) + '%'; };
+      const pre = isVideo ? startVideoJob(blob) : null; // must run synchronously inside the tap
+      $('#pm-act', sh).hidden = true; $('#pm-prog', sh).hidden = false;
+      const opts = { once: $('#o-once', sh).checked, dl: $('#o-dl', sh).checked, lock: $('#o-lock', sh).value };
+      if (!(opts.lock > today())) delete opts.lock;
+      if (isVideo) {
+        $('#pm-step').textContent = 'Comprimo il video…';
+        try { blob = await compressVideo(pre, bar); }
+        catch (e) { console.error(e); closeSheet(); return toast(e?.message || 'Non riesco a leggere questo video.', 5000); }
+        if (blob.size > MAX_BYTES) { closeSheet(); return toast(`Video troppo pesante (${kb(blob.size)}): il limite è 25 MB. Prova con uno più corto.`, 5000); }
+        $('#pm-step').textContent = 'Cifro e invio…'; bar(0);
+      }
+      const ok = await uploadMedia(blob, kind, opts, bar);
+      blob = null; closeSheet();
       if (ok) toast('Inviato');
     };
   }, { lock: true });
@@ -1218,38 +1328,49 @@ function pickRecorderType() {
   const types = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
   return types.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch { return false; } });
 }
-async function compressVideo(file, onProgress) {
+function startVideoJob(file) {
+  // Called synchronously in the "Invia" tap so Safari lets us play the video with its audio routed to the encoder (not the speaker).
   const url = URL.createObjectURL(file);
-  const v = document.createElement('video'); v.src = url; v.playsInline = true; v.preload = 'auto';
+  const v = document.createElement('video'); v.playsInline = true; v.preload = 'auto'; v.src = url;
+  let ac = null, dest = null;
   try {
-    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('Formato video non supportato.')); });
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ac.createMediaElementSource(v); dest = ac.createMediaStreamDestination(); src.connect(dest);
+    ac.resume?.();
+  } catch { ac = null; dest = null; }
+  const primed = v.play().then(() => { v.pause(); return true; }).catch(() => false);
+  return { file, url, v, ac, dest, primed };
+}
+async function compressVideo(job, onProgress) {
+  const { file, url, v, ac, dest } = job;
+  try {
+    if (v.readyState < 1) await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('Formato video non supportato.')); });
     if (v.duration > 31) throw new Error(`Il video dura ${Math.round(v.duration)} secondi. Il limite è 30.`);
+    const primed = await job.primed;
     const type = typeof MediaRecorder !== 'undefined' && HTMLCanvasElement.prototype.captureStream ? pickRecorderType() : null;
-    if (!type) { onProgress(1); return file; }
-    const s = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
-    const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * s / 2) * 2; c.height = Math.round(v.videoHeight * s / 2) * 2;
+    if (!type || !primed) { onProgress(1); return file; }
+    v.pause(); v.currentTime = 0;
+    await new Promise(r => { if (v.readyState >= 2 && !v.seeking) r(); else { v.onseeked = r; setTimeout(r, 800); } });
+    const sc = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * sc / 2) * 2; c.height = Math.round(v.videoHeight * sc / 2) * 2;
     const g = c.getContext('2d');
     const stream = c.captureStream(30);
-    let ac = null;
-    try {
-      ac = new (window.AudioContext || window.webkitAudioContext)();
-      const src = ac.createMediaElementSource(v); const dest = ac.createMediaStreamDestination(); src.connect(dest);
-      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
-    } catch {}
+    dest?.stream.getAudioTracks().forEach(t => stream.addTrack(t));
     const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 900_000, audioBitsPerSecond: 64_000 });
     const parts = []; rec.ondataavailable = e => e.data.size && parts.push(e.data);
     const done = new Promise(r => rec.onstop = r);
     let stopped = false;
     const draw = () => { if (stopped) return; g.drawImage(v, 0, 0, c.width, c.height); onProgress(Math.min(.99, v.currentTime / v.duration)); (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw)); };
+    g.drawImage(v, 0, 0, c.width, c.height);
     rec.start(500);
-    try { await v.play(); } catch { stopped = true; rec.stop(); await done; ac?.close(); onProgress(1); return file; }
+    try { await v.play(); } catch { stopped = true; rec.stop(); await done; onProgress(1); return file; }
     draw();
-    await new Promise(r => v.onended = r);
-    stopped = true; rec.stop(); await done; ac?.close();
+    await new Promise(r => { v.onended = r; setTimeout(r, (v.duration + 5) * 1000); });
+    stopped = true; rec.stop(); await done;
     const out = new Blob(parts, { type: type.split(';')[0] });
     onProgress(1);
-    return out.size && out.size < file.size ? out : file;
-  } finally { v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); }
+    return out.size > 1000 && out.size < file.size ? out : file;
+  } finally { try { ac?.close(); } catch {} v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); }
 }
 
 async function uploadMedia(blob, kind, opts, onProgress) {
@@ -1284,7 +1405,7 @@ async function openMedia(m) {
     <div class="vbody" id="vw-body"><p style="opacity:.7">Decifro…</p></div>
     <div class="vnote">${m.once ? 'Visualizzazione singola: alla chiusura viene distrutto.' : (m.dl ? 'Puoi salvarlo sul telefono.' : 'Solo visione dentro il Nido.')}</div>`;
   vw.addEventListener('contextmenu', e => e.preventDefault());
-  document.body.appendChild(vw);
+  document.body.appendChild(vw); pushNav('viewer');
   let url = null, blob = null;
   viewerCleanup = () => {
     const body = $('#vw-body', vw);
@@ -1330,7 +1451,7 @@ async function openMedia(m) {
     const body = $('#vw-body', vw); if (body) body.innerHTML = `<p style="opacity:.8;text-align:center;padding:0 24px">${e?.message === 'gone' ? 'Questo contenuto non è più disponibile.' : 'Non riesco a decifrarlo. Riprova tra poco.'}</p>`;
   }
 }
-function closeViewer() { viewerCleanup?.(); }
+function closeViewer() { if (!viewerCleanup) return; viewerCleanup(); popNav('viewer'); }
 
 /* ======================= Calendar ======================= */
 const KINDS = { evento: 'Evento', incontro: 'Ci vediamo', esame: 'Esame', ricorrenza: 'Ricorrenza' };
@@ -1581,6 +1702,8 @@ function openSettings() {
     <label class="field"><span>Insieme dal</span><div class="row"><input class="input" type="date" id="st-ann" value="${esc(S.secure.anniversary || '')}"><button class="btn ghost" id="st-ann-go">Salva</button></div></label>
     <div class="menu">
       <button id="st-push">${I.bell}<div>Notifiche<span>${{ granted: 'Attive su questo telefono', denied: 'Bloccate dalle impostazioni del telefono', default: 'Tocca per attivarle', 'ios-browser': 'Aggiungi prima il Nido alla schermata Home', unsupported: 'Non supportate da questo browser' }[pushState()]}</span></div></button>
+      <button id="st-pin">${I.lock}<div>Codice di sblocco<span>${pinInfo() ? 'Attivo su questo telefono' : 'Spento: chiunque abbia il telefono sbloccato può aprire il Nido'}</span></div></button>
+      <button id="st-report">${I.flag}<div>Segnala un problema<span>Arriva a Claude per la correzione</span></div></button>
       <button id="st-tour">${I.heart}<div>Rivedi il tour<span>La presentazione delle funzioni.</span></div></button>
       <button id="st-lock">${I.lock}<div>Blocca il Nido su questo telefono<span>Per riaprirlo servirà la frase segreta.</span></div></button>
       <button id="st-out">${I.left}<div>Esci dall’account<span>${esc(S.email || '')}</span></div></button>
@@ -1593,6 +1716,8 @@ function openSettings() {
     $$('#st-ret button', s).forEach(b => b.onclick = async () => { $$('#st-ret button', s).forEach(x => x.setAttribute('aria-pressed', x === b)); await saveSettings({ retention: +b.dataset.r }); purge(); toast(`La chat ora dura ${b.dataset.r} giorni`); });
     $('#st-ann-go', s).onclick = async () => { await saveSettings({}, { anniversary: $('#st-ann', s).value || null }); toast('Data salvata'); };
     $('#st-push', s).onclick = () => { closeSheet(); lsSet('pushHide', null); enablePush(); };
+    $('#st-pin', s).onclick = () => pinSheet();
+    $('#st-report', s).onclick = () => { closeSheet(); setTimeout(reportSheet, 50); };
     $('#st-tour', s).onclick = () => { closeSheet(); go('home'); setTimeout(runTour, 250); };
     $('#st-lock', s).onclick = async () => { closeSheet(); await keyStore('del'); KEY = null; location.reload(); };
     $('#st-out', s).onclick = () => { closeSheet(); signOut(); };
@@ -1611,7 +1736,7 @@ async function saveSettings(plain, secure) {
 /* ======================= Sheets ======================= */
 let sheetEl = null;
 function sheet(title, html, mount, opt = {}) {
-  closeSheet(true);
+  if (sheetEl) { sheetEl.remove(); sheetEl = null; } else pushNav('sheet');
   const sc = document.createElement('div'); sc.className = 'scrim';
   sc.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><span class="grab"></span><h3>${esc(title)}</h3>${html}</div>`;
   if (!opt.lock) sc.addEventListener('click', e => { if (e.target === sc) closeSheet(); });
@@ -1621,7 +1746,7 @@ function sheet(title, html, mount, opt = {}) {
   const first = $('input:not([type=checkbox]):not([type=date]):not([type=time]),textarea', sc);
   if (first && !first.value && matchMedia('(pointer:fine)').matches) first.focus();
 }
-function closeSheet() { sheetEl?.remove(); sheetEl = null; }
+function closeSheet() { if (!sheetEl) return; sheetEl.remove(); sheetEl = null; popNav('sheet'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewerCleanup) closeViewer(); else closeSheet(); } });
 
 /* ======================= Guided tour ======================= */
@@ -1675,5 +1800,70 @@ function runTour() {
   show();
 }
 
-boot().catch(e => { console.error(e); gate('nodb'); });
+/* ======================= Problem reports to Claude ======================= */
+// Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
+// They never include messages or anything from the encrypted store, only what is typed here plus technical data.
+const BUILD = '__BUILD__';
+const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
+function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
+function noteError(where, e) {
+  const msg = String(e?.message || e || '').slice(0, 300);
+  const code = e?.code || '';
+  if (!msg && !code) return;
+  recentErrors.push({ at: new Date().toISOString(), where, code, msg });
+  while (recentErrors.length > 20) recentErrors.shift();
+  lsSet('errs', JSON.stringify(recentErrors));
+  // Real bugs (not a weak connection) are reported automatically, at most 3 different ones per day.
+  const network = code === 'unavailable' || /fetch|network|load failed|timeout|offline/i.test(msg);
+  if (!network && sb && S.me) autoReport(where, msg);
+}
+window.addEventListener('error', e => noteError('js', e.error || e.message));
+window.addEventListener('unhandledrejection', e => noteError('promise', e.reason));
+async function autoReport(where, msg) {
+  const day = today(); let log = {}; try { log = JSON.parse(lsGet('autoRep') || '{}'); } catch {}
+  if (log.day !== day) log = { day, sent: [] };
+  const key = (where + ':' + msg).slice(0, 120);
+  if (log.sent.includes(key) || log.sent.length >= 3) return;
+  log.sent.push(key); lsSet('autoRep', JSON.stringify(log));
+  try { await sb.from('reports').insert({ kind: 'automatico', text: `Errore in ${where}: ${msg}`, diag: await diagnostics() }); } catch {}
+}
+async function diagnostics() {
+  let swState = 'no', subOk = false;
+  try { const reg = await navigator.serviceWorker?.getRegistration(); swState = reg?.active ? 'attivo' : 'assente'; subOk = !!(await reg?.pushManager?.getSubscription()); } catch {}
+  return {
+    versione: BUILD, dispositivo: deviceName(), browser: navigator.userAgent.slice(0, 180),
+    installata_sulla_home: isStandalone(), schermo: `${innerWidth}x${innerHeight}`, online: navigator.onLine,
+    notifiche: pushState(), iscrizione_push: subOk, service_worker: swState, sezione: S.tab,
+    partner_online: S.partnerOnline, conteggi: { messaggi: S.msgs.length, eventi: S.events.length, cose_da_fare: S.todos.length, corsi: S.courses.length },
+    ultimo_accesso_partner: S.presence[partnerId()] ? new Date(S.presence[partnerId()]).toISOString() : null,
+    errori_recenti: recentErrors.slice(-10), codice_sblocco: !!pinInfo(), ora_locale: new Date().toString(),
+  };
+}
+const AREAS = ['Chat', 'Foto e video', 'Notifiche', 'Calendario', 'Lezioni', 'Da fare', 'Accesso', 'Altro'];
+async function reportSheet() {
+  let mine = [];
+  try { const r = await sb.from('reports').select('id,created_at,text,kind,forwarded_at').eq('kind', 'utente').order('created_at', { ascending: false }).limit(5); mine = r.data || []; } catch {}
+  let area = 'Altro';
+  sheet('Segnala un problema', `<p class="muted small" style="margin:0">Descrivi cosa non funziona: la segnalazione arriva a Claude, che la legge al prossimo controllo e la sistema. Non scrivere cose private: i vostri messaggi e contenuti non vengono mai allegati.</p>
+    <div class="field"><span>Dove</span><div class="row" style="flex-wrap:wrap;gap:6px" id="rp-area">${AREAS.map(a => `<button type="button" class="chip" data-a="${a}" aria-pressed="${a === area}">${a}</button>`).join('')}</div></div>
+    <label class="field"><span>Cosa è successo</span><textarea class="input" id="rp-t" rows="5" maxlength="2000" placeholder="Es. ho mandato una foto alle 21:10 ma a lei non è arrivata la notifica"></textarea></label>
+    <label class="check"><input type="checkbox" id="rp-d" checked><span><b>Allega i dati tecnici</b><br><span class="small muted">Tipo di telefono, versione dell’app, stato delle notifiche, ultimi errori. Aiutano molto.</span></span></label>
+    <div class="actions"><button class="btn ghost" data-close>Annulla</button><button class="btn" id="rp-go">Invia segnalazione</button></div>
+    ${mine.length ? `<div class="stack"><span class="label">Le tue ultime segnalazioni</span>${mine.map(r => `<div class="small" style="display:flex;gap:8px;justify-content:space-between"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.text)}</span><span class="chip ${r.forwarded_at ? 'ok' : ''}">${r.forwarded_at ? 'Arrivata a Claude' : 'In attesa'}</span></div>`).join('')}</div>` : ''}`, sh => {
+    const paint = () => $$('#rp-area [data-a]', sh).forEach(b => { const on = b.dataset.a === area; b.setAttribute('aria-pressed', on); b.className = 'chip' + (on ? ' acc' : ''); });
+    paint();
+    $$('#rp-area [data-a]', sh).forEach(b => b.onclick = () => { area = b.dataset.a; paint(); });
+    $('#rp-go', sh).onclick = async () => {
+      const t = $('#rp-t', sh).value.trim();
+      if (t.length < 5) return toast('Scrivi qualche parola su cosa non funziona.');
+      $('#rp-go', sh).disabled = true;
+      const diag = $('#rp-d', sh).checked ? await diagnostics() : { versione: BUILD, dispositivo: deviceName() };
+      const { error } = await sb.from('reports').insert({ kind: 'utente', text: `[${area}] ${t}`, diag });
+      if (error) { $('#rp-go', sh).disabled = false; console.error(error); return toast(/reports|relation|exist/i.test(error.message || '') ? 'Le segnalazioni non sono ancora attive: manca lo script SQL in Supabase.' : 'Non riesco a inviarla. Riprova tra poco.', 5000); }
+      closeSheet(); toast('Segnalazione inviata. Grazie!');
+    };
+  });
+}
+
+boot().catch(e => { console.error(e); noteError('boot', e); gate('nodb'); });
 </script>
