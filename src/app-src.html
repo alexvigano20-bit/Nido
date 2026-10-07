@@ -2191,19 +2191,23 @@ function closeSheet() { if (!sheetEl) return; sheetEl.remove(); sheetEl = null; 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewerCleanup) closeViewer(); else closeSheet(); } });
 
 /* ======================= Guided tour ======================= */
+// Bump TOUR_VERSION whenever the tour changes: both phones will see it again on the next opening.
+const TOUR_VERSION = 2;
 const TOUR = [
-  { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
+  { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro, con qualche novità. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
-  { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Scrivete come su WhatsApp, con spunte di lettura. Per rispondere a un messaggio citandolo, scorrilo verso destra. I messaggi si cancellano da soli dopo 30 giorni, o 7 se lo scegliete nelle impostazioni.' },
-  { tab: 'chat', sel: '#c-att', t: 'Foto, video e vocali', p: 'Scatta dalla fotocamera del Nido: non finisce in galleria. Di base si vede una sola volta e poi si distrugge. Chi invia decide se l’altro può salvarlo. C’è anche la Capsula: un messaggio che si apre in una data scelta.' },
-  { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi. Potete scorrere i mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
-  { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta sola: l’orario si ripete ogni settimana. Per ogni lezione puoi segnare se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
-  { tab: 'todo', sel: '#tab-todo', t: 'Da fare', p: 'Una lista per due. Assegna le cose a uno dei due o a entrambi. Le completate restano nello storico, divise per mese.' },
-  { tab: 'home', sel: '#open-settings', t: 'Impostazioni', p: 'Durata della chat, il tuo nome, la data in cui vi siete messi insieme e il blocco del Nido su questo telefono.' },
+  { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Spunte di lettura come su WhatsApp, e la tastiera resta aperta per scrivere più messaggi di fila. Per rispondere citando un messaggio, scorrilo verso destra; tenendolo premuto puoi anche copiarlo o eliminarlo. La chat si cancella da sola dopo 30 giorni, o 7.' },
+  { tab: 'chat', sel: '#c-call', t: 'Novità: videochiamata', p: 'Tocca qui per videochiamare. È cifrata da telefono a telefono. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
+  { tab: 'chat', sel: '#c-att', t: 'Foto, video, vocali e capsule', p: 'Novità: la fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e le foto non finiscono mai in galleria. Di base si vedono una volta sola; chi invia decide se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
+  { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi e potete scorrere mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
+  { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta: l’orario si ripete ogni settimana. Per ogni lezione segna se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
+  { tab: 'todo', sel: '#tab-todo', t: 'Da fare', p: 'Una lista per due. Assegna le cose a uno dei due o a entrambi; le completate restano nello storico, divise per mese.' },
+  { tab: 'home', sel: '#open-report', t: 'Novità: segnala un problema', p: 'Se qualcosa non va, tocca la bandierina e descrivilo: la segnalazione arriva a Claude con i dati tecnici, mai con i vostri messaggi, e viene sistemata al controllo successivo.' },
+  { tab: 'home', sel: '#open-settings', t: 'Impostazioni', p: 'Notifiche, codice di sblocco del Nido su questo telefono, durata della chat, il tuo nome e la data in cui vi siete messi insieme. Da qui puoi anche rivedere questo tour.' },
 ];
 async function maybeTour() {
-  if (lsGet('tourDone')) return;
-  try { const p = await db.doc(`data/users/${S.me}/prefs`).get(); if (p.exists && p.data().tourDone) { lsSet('tourDone', '1'); return; } } catch {}
+  if (+(lsGet('tourV') || 0) >= TOUR_VERSION) return;
+  try { const p = await db.doc(`data/users/${S.me}/prefs`).get(); if (p.exists && +(p.data().tourV || 0) >= TOUR_VERSION) { lsSet('tourV', String(TOUR_VERSION)); return; } } catch {}
   setTimeout(runTour, 500);
 }
 function runTour() {
@@ -2213,8 +2217,8 @@ function runTour() {
     <div class="row between"><div class="pips">${TOUR.map(() => '<i></i>').join('')}</div><div class="row"><button class="btn ghost" id="tr-skip">Salta</button><button class="btn" id="tr-next">Avanti</button></div></div></div>`;
   document.body.appendChild(el);
   const finish = async () => {
-    el.remove(); lsSet('tourDone', '1'); go('home');
-    try { await db.doc(`data/users/${S.me}/prefs`).set({ tourDone: true }); } catch {}
+    el.remove(); lsSet('tourV', String(TOUR_VERSION)); go('home');
+    try { await db.doc(`data/users/${S.me}/prefs`).set({ tourDone: true, tourV: TOUR_VERSION }); } catch {}
   };
   const show = () => {
     const st = TOUR[i]; if (S.tab !== st.tab) go(st.tab);
