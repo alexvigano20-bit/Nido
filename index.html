@@ -1690,11 +1690,14 @@ async function iceServers() {
   } catch {}
   return base;
 }
-function getMedia(facing, audio = true) {
-  return navigator.mediaDevices.getUserMedia({
+async function getMedia(facing, audio = true) {
+  const st = await navigator.mediaDevices.getUserMedia({
     audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
     video: { facingMode: facing, width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 30, max: 30 } },
   });
+  st.getVideoTracks().forEach(t => { try { t.contentHint = 'motion'; } catch {} }); // smooth movement over sharp detail
+  st.getAudioTracks().forEach(t => { try { t.contentHint = 'speech'; } catch {} });
+  return st;
 }
 
 /* ---------- ringing sounds (WebAudio, no files) ---------- */
@@ -1829,8 +1832,8 @@ async function createPC() {
 async function tuneQuality() {
   for (const s of CALL.pc.getSenders()) {
     const p = s.getParameters(); if (!p.encodings?.length) p.encodings = [{}];
-    if (s.track?.kind === 'video') { p.encodings[0].maxBitrate = 1_500_000; p.encodings[0].maxFramerate = 30; p.encodings[0].scaleResolutionDownBy = Math.max(1, (s.track.getSettings?.().height || 720) / 720); p.degradationPreference = 'balanced'; }
-    if (s.track?.kind === 'audio') p.encodings[0].maxBitrate = 96_000;
+    if (s.track?.kind === 'video') { p.encodings[0].maxBitrate = 1_500_000; p.encodings[0].maxFramerate = 30; p.encodings[0].scaleResolutionDownBy = Math.max(1, (s.track.getSettings?.().height || 720) / 720); p.degradationPreference = 'maintain-framerate'; }
+    if (s.track?.kind === 'audio') { p.encodings[0].maxBitrate = 96_000; p.encodings[0].priority = p.encodings[0].networkPriority = 'high'; }
     try { await s.setParameters(p); } catch {}
   }
 }
@@ -2239,13 +2242,15 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewer
 
 /* ======================= Guided tour ======================= */
 // Bump TOUR_VERSION whenever the tour changes: both phones will see it again on the next opening.
-const TOUR_VERSION = 2;
+const TOUR_VERSION = 3;
 const TOUR = [
   { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro, con qualche novità. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
+  { tab: 'home', t: 'Perché non WhatsApp', p: 'Anche WhatsApp cifra i messaggi, ma Meta sa con chi parli, quando, quanto spesso e da dove, e i backup su iCloud o Google spesso non sono cifrati. Il Nido non chiede numero né rubrica e non ha pubblicità: il server è solo vostro, ci entrano solo due account e vede soltanto dati illeggibili.' },
+  { tab: 'home', t: 'Cosa resta, e cosa no', p: 'Niente finisce in galleria o in backup nel cloud, e la chat si cancella da sola dopo 30 o 7 giorni. Per onestà: uno screenshot è sempre possibile, e qui l’app non può bloccarlo come fa WhatsApp con le foto “una volta”. Per tutto il resto, il Nido lascia molte meno tracce.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
   { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Spunte di lettura come su WhatsApp, e la tastiera resta aperta per scrivere più messaggi di fila. Per rispondere citando un messaggio, scorrilo verso destra; tenendolo premuto puoi anche copiarlo o eliminarlo. La chat si cancella da sola dopo 30 giorni, o 7.' },
-  { tab: 'chat', sel: '#c-call', t: 'Novità: videochiamata', p: 'Tocca qui per videochiamare. È cifrata da telefono a telefono. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
-  { tab: 'chat', sel: '#c-att', t: 'Foto, video, vocali e capsule', p: 'Novità: la fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e le foto non finiscono mai in galleria. Di base si vedono una volta sola; chi invia decide se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
+  { tab: 'chat', sel: '#c-call', t: 'Novità: videochiamata', p: 'Tocca qui per videochiamare: 720p fluida, cifrata da telefono a telefono. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
+  { tab: 'chat', sel: '#c-att', t: 'Foto, video, vocali e capsule', p: 'Novità: la fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e le foto non finiscono mai in galleria. Chi invia sceglie se si vedono una volta, due volte (la seconda entro 24 ore) o liberamente, e se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
   { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi e potete scorrere mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
   { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta: l’orario si ripete ogni settimana. Per ogni lezione segna se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
   { tab: 'todo', sel: '#tab-todo', t: 'Da fare', p: 'Una lista per due. Assegna le cose a uno dei due o a entrambi; le completate restano nello storico, divise per mese.' },
@@ -2308,7 +2313,7 @@ function reportDelivered() {
 /* ======================= Problem reports to Claude ======================= */
 // Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
 // They never include messages or anything from the encrypted store, only what is typed here plus technical data.
-const BUILD = '2026-10-07 06:07';
+const BUILD = '2026-10-07 06:16';
 const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
 function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
 function noteError(where, e) {
