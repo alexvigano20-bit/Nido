@@ -1176,7 +1176,7 @@ function previewOf(m) {
   if (isSealed(m)) return 'Capsula sigillata';
   if (m.t === 'text') return (m.lock ? 'Capsula · ' : '') + String(m.text || '').replace(/\s+/g, ' ').slice(0, 90);
   if (m.t === 'call') return 'Videochiamata';
-  return (MEDIA_LABEL[m.t] || 'Contenuto') + (m.once ? ' · una volta' : '');
+  return (MEDIA_LABEL[m.t] || 'Contenuto') + (m.once ? (m.views === 2 ? ' · due volte' : ' · una volta') : '');
 }
 function quoteHtml(r) {
   if (!r) return '';
@@ -1201,12 +1201,17 @@ function bubble(m) {
   const label = MEDIA_LABEL[m.t] || 'File';
   const icon = { photo: I.camera, video: I.video, audio: I.mic }[m.t] || I.image;
   let sub, can = true;
-  if (m.once && m.opened) { sub = mine ? `Visto ${dayLabel(m.opened).toLowerCase()} alle ${hhmm(m.opened)}` : 'Visto · non più disponibile'; can = false; }
-  else if (m.once && mine) { sub = 'Visualizzazione singola · non ancora visto'; can = false; }
-  else if (m.once) { sub = 'Tocca per vedere · una sola volta'; }
+  const two = m.views === 2, left = two ? 2 - (m.opens || 0) : 1, until = m.firstOpen ? m.firstOpen + SECOND_VIEW_MS : 0;
+  if (m.once && two && !m.opened && m.opens) {
+    if (mine) { sub = `Visto 1 volta su 2 · ${dayLabel(m.firstOpen).toLowerCase()} alle ${hhmm(m.firstOpen)}`; can = false; }
+    else sub = `Ancora 1 visualizzazione · entro ${dayLabel(until).toLowerCase()} alle ${hhmm(until)}`;
+  }
+  else if (m.once && m.opened) { sub = mine ? `Visto ${dayLabel(m.opened).toLowerCase()} alle ${hhmm(m.opened)}` : 'Visto · non più disponibile'; can = false; }
+  else if (m.once && mine) { sub = (two ? 'Due visualizzazioni' : 'Visualizzazione singola') + ' · non ancora visto'; can = false; }
+  else if (m.once) { sub = two ? 'Tocca per vedere · 2 visualizzazioni' : 'Tocca per vedere · una sola volta'; }
   else sub = (m.dl ? 'Salvabile' : 'Solo visione') + (m.size ? ' · ' + kb(m.size) : '');
   return `<div role="button" tabindex="0" class="bub ${cls} media ${can ? '' : 'spent'} ${q ? 'withq' : ''}" data-id="${esc(m.id)}" ${can ? `data-open="${esc(m.id)}"` : 'aria-disabled="true"'}>${sw}${q}
-    <span class="mrow"><span class="ic">${m.once ? I.eye : icon}</span><span class="tx"><b>${label}${m.once ? ' · una volta' : ''}</b><span>${esc(sub)}</span>${meta}</span></span></div>`;
+    <span class="mrow"><span class="ic">${m.once ? I.eye : icon}</span><span class="tx"><b>${label}${m.once ? (two ? ' · due volte' : ' · una volta') : ''}</b><span>${esc(sub)}</span>${meta}</span></span></div>`;
 }
 function longPress(el, fn) {
   let t = null, x0 = 0, y0 = 0;
@@ -1288,7 +1293,11 @@ async function purge() {
   const cutoff = Date.now() - S.settings.retention * DAY;
   for (const m of [...S.msgs]) {
     const base = m.lock ? Math.max(m.ts, parseYmd(m.lock).getTime() + DAY) : m.ts;
-    if (base < cutoff) await deleteMsg(m);
+    if (base < cutoff) { await deleteMsg(m); continue; }
+    if (m.once && m.views === 2 && m.opens && !m.opened && Date.now() > m.firstOpen + SECOND_VIEW_MS) {
+      await save('msgs/' + m.id, { opened: m.firstOpen + SECOND_VIEW_MS }, true);
+      if (m.mid) await deleteMedia(m.mid);
+    }
   }
 }
 
@@ -1330,6 +1339,12 @@ function capsuleSheet() {
 }
 
 const MAX_BYTES = 25e6;
+const SECOND_VIEW_MS = 24 * 3600e3;
+const VIEWS_NOTE = {
+  '1': 'Dopo che lo apre viene distrutto, per entrambi.',
+  '2': 'Può riaprirlo una seconda volta entro 24 ore, poi viene distrutto. Nel frattempo resta solo cifrato sul server, non sul telefono.',
+  '0': 'Può riaprirlo finché la chat non si cancella.',
+};
 async function prepareMedia(file, kind) {
   if (kind === 'auto') kind = file.type.startsWith('video') ? 'video' : 'photo';
   if (kind === 'photo' && !file.type.startsWith('image')) kind = file.type.startsWith('video') ? 'video' : kind;
@@ -1343,19 +1358,24 @@ async function prepareMedia(file, kind) {
   // Videos are compressed when you tap "Invia": iPhones only allow video+audio processing right after a tap.
   if (!isVideo && blob.size > MAX_BYTES) { closeSheet(); return toast(`Troppo pesante (${kb(blob.size)}). Il limite è 25 MB.`, 4500); }
   const label = MEDIA_LABEL[kind];
+  const defViews = isAudio ? '0' : (['1', '2', '0'].includes(lsGet('views')) ? lsGet('views') : '1');
   sheet(label, `<p class="muted" style="margin:0">${isVideo ? `Video · ${kb(blob.size)}. Lo comprimo all’invio.` : `${label} ${kind === 'photo' ? 'pronta' : 'pronto'} · ${kb(blob.size)}.`} Tu non ne conservi una copia: resta solo cifrato finché ${esc(partnerName())} non lo apre.</p>
-    <label class="check"><input type="checkbox" id="o-once" ${isAudio ? '' : 'checked'}><span><b>Visualizzazione singola</b><br><span class="small muted">Dopo che lo apre viene distrutto, per entrambi.</span></span></label>
+    <div class="field"><span>Quante volte può aprirlo</span><div class="seg" id="o-views">${[['1', 'Una volta'], ['2', 'Due volte'], ['0', 'Libero']].map(([k, l]) => `<button type="button" data-v="${k}" aria-pressed="${defViews === k}">${l}</button>`).join('')}</div>
+      <span class="small muted" id="o-views-note">${VIEWS_NOTE[defViews]}</span></div>
     <label class="check"><input type="checkbox" id="o-dl"><span><b>Può salvarlo sul telefono</b><br><span class="small muted">Spento: può solo guardarlo dentro il Nido.</span></span></label>
     ${lockOptions()}
     <div id="pm-prog" hidden class="stack"><p class="small muted" style="margin:0" id="pm-step">Cifro e invio…</p><div class="progress"><i id="pm-bar2"></i></div></div>
     <div class="actions" id="pm-act"><button class="btn ghost" id="pm-cancel">Annulla</button><button class="btn" id="pm-go">Invia</button></div>`, sh => {
     wireLock(sh);
+    $$('#o-views button', sh).forEach(b => b.onclick = () => { $$('#o-views button', sh).forEach(x => x.setAttribute('aria-pressed', x === b)); $('#o-views-note', sh).textContent = VIEWS_NOTE[b.dataset.v]; });
     $('#pm-cancel', sh).onclick = () => { blob = null; closeSheet(); };
     $('#pm-go', sh).onclick = async () => {
       const bar = p => { const b = $('#pm-bar2'); if (b) b.style.width = Math.round(p * 100) + '%'; };
       const pre = isVideo ? startVideoJob(blob) : null; // must run synchronously inside the tap
       $('#pm-act', sh).hidden = true; $('#pm-prog', sh).hidden = false;
-      const opts = { once: $('#o-once', sh).checked, dl: $('#o-dl', sh).checked, lock: $('#o-lock', sh).value };
+      const v = $('#o-views [aria-pressed="true"]', sh)?.dataset.v || '1';
+      if (!isAudio) lsSet('views', v);
+      const opts = { once: v !== '0', views: v === '2' ? 2 : undefined, dl: $('#o-dl', sh).checked, lock: $('#o-lock', sh).value };
       if (!(opts.lock > today())) delete opts.lock;
       if (isVideo) {
         $('#pm-step').textContent = 'Comprimo il video…';
@@ -1445,7 +1465,7 @@ async function uploadMedia(blob, kind, opts, onProgress) {
     const metaEnc = await encJSON({ mime: blob.type || 'application/octet-stream' });
     if (!await save('media/' + mid, { from: S.me, enc: metaEnc })) throw new Error('meta');
     onProgress(1);
-    const ok = await sendMsg({ t: kind, once: !!opts.once, dl: !!opts.dl, lock: opts.lock, size: blob.size }, mid);
+    const ok = await sendMsg({ t: kind, once: !!opts.once, ...(opts.views ? { views: 2 } : {}), dl: !!opts.dl, lock: opts.lock, size: blob.size }, mid);
     if (!ok) throw new Error('send');
     return true;
   } catch (e) {
@@ -1461,10 +1481,12 @@ async function openMedia(m) {
   if (!m) return;
   if (m.once && m.from === S.me) return;
   if (m.once && m.opened) return toast('Già visto: non è più disponibile.');
+  const second = m.once && m.views === 2 && (m.opens || 0) >= 1;
+  if (second && Date.now() > m.firstOpen + SECOND_VIEW_MS) return toast('Il tempo per rivederlo è scaduto.');
   const vw = document.createElement('div'); vw.className = 'viewer'; vw.setAttribute('role', 'dialog'); vw.setAttribute('aria-label', MEDIA_LABEL[m.t]);
   vw.innerHTML = `<div class="vbar"><button id="vw-close">Chiudi</button><span class="small" style="opacity:.8">${esc(nameOf(m.from))} · ${hhmm(m.ts)}</span><span id="vw-save-slot"></span></div>
     <div class="vbody" id="vw-body"><p style="opacity:.7">Decifro…</p></div>
-    <div class="vnote">${m.once ? 'Visualizzazione singola: alla chiusura viene distrutto. Pizzica per ingrandire.' : (m.dl ? 'Puoi salvarlo sul telefono.' : 'Solo visione dentro il Nido.')}</div>`;
+    <div class="vnote">${m.once ? (m.views === 2 && !second ? 'Prima visualizzazione: potrai riaprirlo una volta entro 24 ore. Pizzica per ingrandire.' : (m.views === 2 ? 'Ultima visualizzazione' : 'Visualizzazione singola') + ': alla chiusura viene distrutto. Pizzica per ingrandire.') : (m.dl ? 'Puoi salvarlo sul telefono.' : 'Solo visione dentro il Nido.')}</div>`;
   vw.addEventListener('contextmenu', e => e.preventDefault());
   document.body.appendChild(vw); pushNav('viewer');
   let url = null, blob = null;
@@ -1484,8 +1506,12 @@ async function openMedia(m) {
     const bytes = await decBytes(await media.download(m.mid));
     blob = new Blob([bytes], { type: meta.mime });
     if (m.once && m.from !== S.me) {
-      await save('msgs/' + m.id, { opened: Date.now(), seen: m.seen || Date.now() }, true);
-      deleteMedia(m.mid);
+      if (m.views === 2 && !second) {
+        await save('msgs/' + m.id, { opens: 1, firstOpen: Date.now(), seen: m.seen || Date.now() }, true);
+      } else {
+        await save('msgs/' + m.id, { opens: m.views === 2 ? 2 : 1, opened: Date.now(), seen: m.seen || Date.now() }, true);
+        deleteMedia(m.mid);
+      }
     }
     if (!viewerCleanup) return;
     url = URL.createObjectURL(blob);
@@ -1646,7 +1672,7 @@ async function iceServers() {
 function getMedia(facing, audio = true) {
   return navigator.mediaDevices.getUserMedia({
     audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
-    video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+    video: { facingMode: facing, width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 30, max: 30 } },
   });
 }
 
@@ -1782,7 +1808,7 @@ async function createPC() {
 async function tuneQuality() {
   for (const s of CALL.pc.getSenders()) {
     const p = s.getParameters(); if (!p.encodings?.length) p.encodings = [{}];
-    if (s.track?.kind === 'video') { p.encodings[0].maxBitrate = 4_000_000; p.encodings[0].maxFramerate = 30; p.degradationPreference = 'balanced'; }
+    if (s.track?.kind === 'video') { p.encodings[0].maxBitrate = 1_500_000; p.encodings[0].maxFramerate = 30; p.encodings[0].scaleResolutionDownBy = Math.max(1, (s.track.getSettings?.().height || 720) / 720); p.degradationPreference = 'balanced'; }
     if (s.track?.kind === 'audio') p.encodings[0].maxBitrate = 96_000;
     try { await s.setParameters(p); } catch {}
   }
