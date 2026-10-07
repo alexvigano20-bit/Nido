@@ -37,7 +37,7 @@ html{-webkit-text-size-adjust:100%}
 button,a,[role=button]{touch-action:manipulation}
 #app{height:var(--app-h,100%)}
 body.kb #tabbar{display:none}
-body.veil #app,body.veil .viewer,body.veil .scrim{filter:blur(22px)}
+body.veil #app,body.veil .viewer,body.veil .scrim,body.veil .call{filter:blur(22px)}
 .bub a{color:inherit;text-decoration:underline;overflow-wrap:anywhere}
 .lock{position:fixed;inset:0;z-index:95;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .lock .box{width:100%;max-width:320px;display:flex;flex-direction:column;gap:16px;text-align:center}
@@ -292,6 +292,27 @@ details.hist summary::-webkit-details-marker{display:none}
 .pips i.on{background:var(--accent);width:16px}
 
 .notif-card{border-color:var(--accent)}
+.call{position:fixed;inset:0;z-index:85;background:#0d0b10;color:#fff;overflow:hidden}
+.call #call-remote{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0d0b10;opacity:0;transition:opacity .3s}
+.call.live #call-remote{opacity:1}
+.call .call-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:22px}
+.call.live .call-center{display:none}
+.call .call-av{width:110px;height:110px;font-size:52px}
+.call #call-local{position:absolute;right:14px;top:calc(84px + env(safe-area-inset-top,0px));width:30%;max-width:150px;aspect-ratio:3/4;object-fit:cover;border-radius:14px;border:2px solid rgba(255,255,255,.35);background:#222;z-index:2}
+.call #call-local.mirror{transform:scaleX(-1)}
+.call:not(.haslocal) #call-local{display:none}
+.call .call-top{position:absolute;left:0;right:0;top:0;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;background:linear-gradient(rgba(0,0,0,.55),transparent);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;z-index:3}
+.call .call-who{display:flex;flex-direction:column;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.call .call-who b{font-size:18px}
+.call .call-who span{font-size:13.5px;opacity:.85;font-variant-numeric:tabular-nums}
+.call .call-code{font-size:12px;background:rgba(0,0,0,.45);border-radius:999px;padding:5px 10px;white-space:nowrap}
+.call .call-bot{position:absolute;left:0;right:0;bottom:0;padding:18px 10px calc(22px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:10px;background:linear-gradient(transparent,rgba(0,0,0,.6));z-index:3}
+.call .cb{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;color:#fff;font-size:11px;font-weight:600;min-width:60px}
+.call .cb svg{width:26px;height:26px;box-sizing:content-box;padding:14px;border-radius:50%;background:rgba(255,255,255,.18)}
+.call .cb.off svg{background:#fff;color:#111}
+.call .cb.red svg{background:#E5484D}
+.call .cb.green svg{background:#2EAD5B}
+.bub.callb{cursor:pointer}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:90;max-width:calc(100% - 32px);box-shadow:var(--shadow);animation:fade .2s}
 .progress{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
@@ -385,6 +406,11 @@ const I = {
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
   flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
   flip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3l-2-3H9L7 7H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2M14 9.5l.4 1.6-1.6.3M10 16.5l-.4-1.6 1.6-.3"/></svg>',
+  phoneoff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 13.3a15 15 0 0 0 3.6 2.6l1.6-1.6a1.5 1.5 0 0 1 1.6-.3c1 .4 2.1.6 3.2.7a1.5 1.5 0 0 1 1.3 1.5v2.6a1.5 1.5 0 0 1-1.6 1.5A19 19 0 0 1 3 4.6 1.5 1.5 0 0 1 4.5 3h2.6a1.5 1.5 0 0 1 1.5 1.3c.1 1.1.3 2.2.7 3.2a1.5 1.5 0 0 1-.3 1.6L7.4 10.7M22 2 2 22"/></svg>',
+  micoff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M9 9v2.5a3 3 0 0 0 5 2.2M15 9.3V5.5a3 3 0 0 0-5.8-1M5 11a7 7 0 0 0 11.7 5.2M19 11a7 7 0 0 1-.6 2.8M12 18v3.5"/></svg>',
+  videooff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M15.5 15.5V16a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1M9.5 6h4a2 2 0 0 1 2 2v3.5l6-3.5v10"/></svg>',
+  spk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  spkoff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="m17 9 5 6M22 9l-5 6"/></svg>',
   heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-9.3-9.2C1.5 7.5 3.7 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.5 0 5.7 3.5 4.5 6.8C19.5 15.4 12 20 12 20z"/></svg>',
 };
 
@@ -934,6 +960,7 @@ function subscribeAll() {
   live(db.collection('todos'), l => { S.todos = l; renderAll(); });
   live(db.collection('courses'), l => { S.courses = l; renderAll(); });
   live(db.collection('lessonlog'), l => { S.log = Object.fromEntries(l.map(x => [x.id, x])); renderAll(); });
+  setupCalls().catch(e => console.error('calls', e));
 }
 
 /* ======================= Presence ======================= */
@@ -1044,7 +1071,8 @@ function wireEvItems(r) { $$('[data-ev]', r).forEach(b => b.onclick = () => even
 let purged = false;
 function buildChat() {
   $('#v-chat').innerHTML = `<header class="chathead"><div class="avatar" id="c-av"><span id="c-ini"></span><i class="dot" data-dot></i></div>
-      <div class="who"><b id="c-name"></b><div class="status" data-status></div></div></header>
+      <div class="who"><b id="c-name"></b><div class="status" data-status></div></div>
+      <button class="iconbtn" id="c-call" aria-label="Videochiamata">${I.video}</button></header>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div id="reply-bar" hidden></div>
     <div class="composer"><button class="round" id="c-att" aria-label="Allega foto, video, vocale o capsula">${I.plus}</button>
@@ -1070,6 +1098,7 @@ function buildChat() {
   sendBtn.addEventListener('touchend', e => { if (document.activeElement === ta) { e.preventDefault(); sendText(); } }); // iPhone: send without the box losing focus
   sendBtn.onclick = () => { const had = document.activeElement === ta; sendText(); if (had || matchMedia('(pointer:coarse)').matches) ta.focus(); };
   $('#c-att').onclick = attachMenu;
+  $('#c-call').onclick = startCall;
   const onFile = (kind) => async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) prepareMedia(f, kind); };
   $('#f-photo').onchange = onFile('photo');
   $('#f-video').onchange = onFile('video');
@@ -1083,10 +1112,10 @@ async function sendText(lock) {
   const ok = await sendMsg({ t: 'text', text, lock: typeof lock === 'string' ? lock : undefined });
   if (!ok) { ta.value = text; }
 }
-async function sendMsg(inner, mid) {
+async function sendMsg(inner, mid, extra = {}) {
   const id = Date.now().toString(36) + newId().slice(0, 8);
   if (S.replyTo && !inner.reply) { inner = { ...inner, reply: S.replyTo }; S.replyTo = null; renderReplyBar(); }
-  const ok = await save('msgs/' + id, { from: S.me, ts: Date.now(), seen: null, opened: null, mid: mid || null, enc: await encJSON(inner) });
+  const ok = await save('msgs/' + id, { from: S.me, ts: Date.now(), seen: null, opened: null, mid: mid || null, enc: await encJSON(inner), ...extra });
   if (ok) { scrollChat(true); markSeenSelf(); }
   return ok;
 }
@@ -1131,6 +1160,7 @@ function renderChat() {
     swipeToReply(b, () => setReply(m()));
   });
   $$('.bub a', box).forEach(a => a.addEventListener('click', e => e.stopPropagation()));
+  $$('[data-recall]', box).forEach(b => b.addEventListener('click', () => { if (!b.dataset.swiped) startCall(); }));
   $$('.quote[data-jump]', box).forEach(q => q.onclick = e => { e.stopPropagation(); jumpTo(q.dataset.jump); });
   $$('[data-open]', box).forEach(b => b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } });
   renderTyping();
@@ -1145,6 +1175,7 @@ function previewOf(m) {
   if (!m) return '';
   if (isSealed(m)) return 'Capsula sigillata';
   if (m.t === 'text') return (m.lock ? 'Capsula · ' : '') + String(m.text || '').replace(/\s+/g, ' ').slice(0, 90);
+  if (m.t === 'call') return 'Videochiamata';
   return (MEDIA_LABEL[m.t] || 'Contenuto') + (m.once ? ' · una volta' : '');
 }
 function quoteHtml(r) {
@@ -1159,6 +1190,10 @@ function bubble(m) {
   if (isSealed(m)) {
     return `<div class="bub ${cls} media sealed ${q ? 'withq' : ''}" data-id="${esc(m.id)}">${sw}${q}<span class="mrow"><span class="ic">${I.gift}</span><span class="tx"><b>Capsula sigillata</b>
       <span>Si apre ${esc(dayLabel(parseYmd(m.lock)).toLowerCase())}</span>${meta}</span></span></div>`;
+  }
+  if (m.t === 'call') {
+    const d = m.dur || 0, txt = m.missed ? 'Videochiamata persa' : m.declined ? 'Videochiamata rifiutata' : `Videochiamata · ${Math.floor(d / 60)}:${pad(d % 60)}`;
+    return `<div role="button" tabindex="0" class="bub ${cls} media callb" data-id="${esc(m.id)}" data-recall="1">${sw}${q}<span class="mrow"><span class="ic">${I.video}</span><span class="tx"><b>${txt}</b><span>Tocca per richiamare</span>${meta}</span></span></div>`;
   }
   if (m.t === 'text') {
     return `<div class="bub ${cls}" data-id="${esc(m.id)}">${sw}${q}${m.lock ? `<span class="tiny" style="opacity:.8;display:block">${I.gift.replace('<svg','<svg width="12" height="12" style="vertical-align:-1px"')} Capsula del ${esc(fmtDate(m.lock))}</span>` : ''}${linkify(esc(m.text))}${meta}</div>`;
@@ -1574,6 +1609,286 @@ async function openCamera() {
   };
   document.addEventListener('visibilitychange', function vis() { if (document.hidden && !closed) { close(); document.removeEventListener('visibilitychange', vis); } });
   start();
+}
+
+/* ======================= Video call ======================= */
+// Peer-to-peer WebRTC: audio/video are encrypted end to end by the phones (DTLS-SRTP).
+// The handshake (offer/answer/ICE) travels over Supabase broadcast but is sealed with the couple's key,
+// so nobody without the secret phrase can read it or slip into the middle.
+const CALL_WORDS = ['ape','arco','baia','bosco','cielo','cuore','duna','eco','faro','fiore','fiume','gatto','grano','isola','lago','luna','mare','miele','monte','neve','nido','noce','onda','orso','pane','perla','piuma','ponte','prato','quercia','rosa','sale','seta','sole','stella','tigre','uva','vela','vento','volpe','zefiro','alba','ambra','corallo','delfino','foglia','gelso','giglio','lampo','limone','lupo','mela','muschio','ninfea','oliva','pesca','pino','riva','salice','sasso','tulipano','vigna','viola','zucca'];
+const RING_MS = 45000;
+let CALL = null, callChan = null;
+const callDocsSeen = new Set();
+
+async function setupCalls() {
+  if (!sb || !S.couple?.salt) return;
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode('nido-call:' + S.couple.salt)));
+  callChan = sb.channel('nc-' + [...h.slice(0, 8)].map(x => x.toString(16).padStart(2, '0')).join(''), { config: { broadcast: { self: false } } });
+  callChan.on('broadcast', { event: 'sig' }, async msg => {
+    try { const m = await decJSON(msg.payload.e); if (m.from !== S.me) onSignal(m); } catch {}
+  }).subscribe();
+  live(db.collection('calls'), onCallDocs);
+}
+async function sendSig(kind, data) {
+  if (!callChan || !CALL) return;
+  try { await callChan.send({ type: 'broadcast', event: 'sig', payload: { e: await encJSON({ callId: CALL.id, kind, data: data ?? null, from: S.me }) } }); }
+  catch (e) { console.error('sig', e); }
+}
+async function iceServers() {
+  const base = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
+  try {
+    if (!sb.functions) return base;
+    const { data, error } = await sb.functions.invoke('turn', { body: {} });
+    if (!error && Array.isArray(data?.iceServers) && data.iceServers.length) return data.iceServers;
+  } catch {}
+  return base;
+}
+function getMedia(facing, audio = true) {
+  return navigator.mediaDevices.getUserMedia({
+    audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
+    video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+  });
+}
+
+/* ---------- ringing sounds (WebAudio, no files) ---------- */
+let ringCtx = null, ringStop = null;
+function startRing(kind) {
+  stopRing();
+  try {
+    ringCtx = ringCtx || new (window.AudioContext || window.webkitAudioContext)(); ringCtx.resume?.();
+    let alive = true;
+    const beep = (f, t0, d, vol) => { const o = ringCtx.createOscillator(), g = ringCtx.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02); g.gain.linearRampToValueAtTime(0, t0 + d); o.connect(g).connect(ringCtx.destination); o.start(t0); o.stop(t0 + d + .05); };
+    const loop = () => {
+      if (!alive) return; const t = ringCtx.currentTime;
+      if (kind === 'in') { beep(880, t, .35, .25); beep(660, t + .4, .35, .25); try { navigator.vibrate?.([400, 200, 400]); } catch {} }
+      else beep(440, t, 1, .08);
+      setTimeout(loop, kind === 'in' ? 1800 : 3000);
+    };
+    loop(); ringStop = () => { alive = false; };
+  } catch {}
+}
+function stopRing() { ringStop?.(); ringStop = null; try { navigator.vibrate?.(0); } catch {} }
+
+/* ---------- state machine ---------- */
+async function startCall() {
+  if (CALL) return;
+  const pid = partnerId();
+  if (!pid) return toast('Il Nido non ha ancora il secondo membro.');
+  if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) return toast('Questo telefono non supporta le videochiamate dal browser.');
+  CALL = { id: Date.now().toString(36) + newId().slice(0, 6), role: 'caller', st: 'calling', facing: 'user', mic: true, cam: true, partnerMuted: false, ice: [], startedAt: 0 };
+  callUI();
+  try { await attachLocal(await getMedia('user')); }
+  catch (e) { console.error(e); endCall('local', e?.name === 'NotAllowedError' ? 'Serve il permesso per fotocamera e microfono: lo trovi nelle impostazioni del telefono.' : 'Non riesco ad aprire fotocamera e microfono.'); return; }
+  if (!CALL) return;
+  startRing('out');
+  CALL.ts = Date.now();
+  await callState('ringing');
+  if (!CALL) return;
+  sendSig('ring');
+  CALL.ringTimer = setTimeout(() => { if (CALL?.st === 'calling') endCall('missed'); }, RING_MS);
+}
+// Call documents are always written whole (the copy on this phone may not have arrived yet when we answer).
+function callState(state, c = CALL) {
+  if (!c) return Promise.resolve(false);
+  const from = c.role === 'caller' ? S.me : c.from, to = c.role === 'caller' ? partnerId() : S.me;
+  return save('calls/' + c.id, { from, to, ts: c.ts || Date.now(), state });
+}
+function incoming(id, from, ts) {
+  if (CALL) { if (CALL.id !== id) save('calls/' + id, { from, to: S.me, ts: ts || Date.now(), state: 'busy' }); return; }
+  CALL = { id, role: 'callee', st: 'incoming', from, ts: ts || Date.now(), facing: 'user', mic: true, cam: true, partnerMuted: false, ice: [], startedAt: 0 };
+  callUI(); startRing('in');
+  CALL.ringTimer = setTimeout(() => { if (CALL?.st === 'incoming') teardown(); }, RING_MS);
+}
+async function acceptCall() {
+  if (!CALL || CALL.st !== 'incoming') return;
+  stopRing(); CALL.st = 'connecting'; paintCall();
+  try { await attachLocal(await getMedia('user')); }
+  catch (e) { console.error(e); endCall('local', 'Non riesco ad aprire fotocamera e microfono.'); return; }
+  await callState('accepted');
+  sendSig('accept');
+}
+function declineCall() { if (!CALL) return; sendSig('decline'); callState('declined'); teardown(); }
+async function onAccepted() {
+  if (!CALL || CALL.role !== 'caller' || CALL.st !== 'calling') return;
+  clearTimeout(CALL.ringTimer); stopRing(); CALL.st = 'connecting'; paintCall();
+  await createPC();
+  if (!CALL?.pc) return;
+  const offer = await CALL.pc.createOffer();
+  if (!CALL?.pc) return;
+  await CALL.pc.setLocalDescription(offer);
+  sendSig('offer', { type: offer.type, sdp: offer.sdp });
+}
+async function onSignal(m) {
+  if (m.kind === 'ring') { if (!CALL || CALL.id !== m.callId) { callDocsSeen.add(m.callId); incoming(m.callId, m.from); } return; }
+  if (!CALL || m.callId !== CALL.id) return;
+  try {
+    if (m.kind === 'accept') return onAccepted();
+    if (m.kind === 'offer' && CALL.role === 'callee') {
+      if (!CALL.pc) await createPC();
+      await CALL.pc.setRemoteDescription(m.data);
+      const ans = await CALL.pc.createAnswer();
+      await CALL.pc.setLocalDescription(ans);
+      sendSig('answer', { type: ans.type, sdp: ans.sdp });
+      flushIce();
+    } else if (m.kind === 'answer' && CALL.role === 'caller' && CALL.pc) {
+      await CALL.pc.setRemoteDescription(m.data); flushIce();
+    } else if (m.kind === 'ice') {
+      if (CALL.pc?.remoteDescription) await CALL.pc.addIceCandidate(m.data).catch(() => {});
+      else CALL.ice.push(m.data);
+    } else if (m.kind === 'hangup' || m.kind === 'decline') {
+      endCall(m.kind === 'decline' ? 'declined' : 'remote');
+    } else if (m.kind === 'restart' && CALL.role === 'caller' && CALL.pc) {
+      const offer = await CALL.pc.createOffer({ iceRestart: true }); await CALL.pc.setLocalDescription(offer); sendSig('offer', { type: offer.type, sdp: offer.sdp });
+    }
+  } catch (e) { console.error('signal', m.kind, e); noteError('call ' + m.kind, e); }
+}
+function flushIce() { const q = CALL?.ice || []; CALL.ice = []; q.forEach(c => CALL.pc.addIceCandidate(c).catch(() => {})); }
+function onCallDocs(list) {
+  const now = Date.now();
+  for (const d of list) {
+    if (d.from === S.me && now - (d.ts || 0) > DAY) { del('calls/' + d.id); continue; }
+    if (d.to === S.me && d.state === 'ringing' && now - d.ts < RING_MS && !callDocsSeen.has(d.id)) { callDocsSeen.add(d.id); incoming(d.id, d.from, d.ts); }
+    if (CALL && d.id === CALL.id) {
+      const c = CALL;
+      if (c.role === 'caller' && c.st === 'calling') {
+        if (d.state === 'accepted') onAccepted();
+        else if (d.state === 'busy') endCall('busy');
+        else if (d.state === 'declined') endCall('declined');
+      } else if (c.role === 'callee' && c.st === 'incoming' && ['ended', 'missed'].includes(d.state)) teardown();
+    }
+  }
+}
+async function createPC() {
+  const servers = await iceServers();
+  if (!CALL) return;
+  const pc = new RTCPeerConnection({ iceServers: servers, iceCandidatePoolSize: 2 });
+  CALL.pc = pc;
+  CALL.local.getTracks().forEach(t => { const snd = pc.addTrack(t, CALL.local); if (t.kind === 'video') CALL.videoSender = snd; });
+  pc.onicecandidate = e => { if (e.candidate) sendSig('ice', e.candidate.toJSON()); };
+  pc.ontrack = e => { const v = $('#call-remote'); if (v && v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => {}); } };
+  pc.onconnectionstatechange = () => {
+    if (!CALL || CALL.pc !== pc) return;
+    const s = pc.connectionState;
+    if (s === 'connected') {
+      if (CALL.st !== 'active') { CALL.st = 'active'; CALL.startedAt = CALL.startedAt || Date.now(); tuneQuality(); safetyCode(); keepAwake(true); }
+      CALL.unstable = false; paintCall();
+    } else if (s === 'disconnected') { CALL.unstable = true; paintCall(); }
+    else if (s === 'failed') {
+      if (!CALL.restarted) { CALL.restarted = true; CALL.unstable = true; paintCall(); if (CALL.role === 'caller') { pc.createOffer({ iceRestart: true }).then(o => pc.setLocalDescription(o).then(() => sendSig('offer', { type: o.type, sdp: o.sdp }))); } else sendSig('restart'); }
+      else endCall('failed');
+    }
+  };
+}
+async function tuneQuality() {
+  for (const s of CALL.pc.getSenders()) {
+    const p = s.getParameters(); if (!p.encodings?.length) p.encodings = [{}];
+    if (s.track?.kind === 'video') { p.encodings[0].maxBitrate = 4_000_000; p.encodings[0].maxFramerate = 30; p.degradationPreference = 'balanced'; }
+    if (s.track?.kind === 'audio') p.encodings[0].maxBitrate = 96_000;
+    try { await s.setParameters(p); } catch {}
+  }
+}
+async function safetyCode() {
+  try {
+    const fp = sdp => (String(sdp).match(/a=fingerprint:\S+ ([0-9A-F:]+)/i) || [])[1] || '';
+    const both = [fp(CALL.pc.localDescription.sdp), fp(CALL.pc.remoteDescription.sdp)].sort().join('|');
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', TE.encode('nido-call-code:' + both)));
+    CALL.code = [...h.slice(0, 4)].map(b => CALL_WORDS[b % CALL_WORDS.length]).join(' · ');
+    paintCall();
+  } catch {}
+}
+let wakeLock = null;
+async function keepAwake(on) { try { if (on) wakeLock = await navigator.wakeLock?.request('screen'); else { await wakeLock?.release(); wakeLock = null; } } catch {} }
+async function attachLocal(stream) {
+  if (!CALL) { stream.getTracks().forEach(t => t.stop()); return; }
+  CALL.local = stream;
+  $('#call')?.classList.add('haslocal');
+  const v = $('#call-local'); if (v) { v.srcObject = stream; v.classList.toggle('mirror', CALL.facing === 'user'); v.play().catch(() => {}); }
+  paintCall();
+}
+async function flipCamera() {
+  if (!CALL?.local) return;
+  const old = CALL.local.getVideoTracks()[0];
+  const facing = CALL.facing === 'user' ? 'environment' : 'user';
+  old?.stop(); // iPhone can't open the second camera while the first one is running
+  try {
+    const s = await getMedia(facing, false);
+    const nt = s.getVideoTracks()[0]; nt.enabled = CALL.cam;
+    if (old) CALL.local.removeTrack(old);
+    CALL.local.addTrack(nt);
+    if (CALL.videoSender) await CALL.videoSender.replaceTrack(nt);
+    CALL.facing = facing;
+    const v = $('#call-local'); if (v) { v.srcObject = CALL.local; v.classList.toggle('mirror', facing === 'user'); }
+    if (CALL.pc) tuneQuality();
+  } catch (e) { console.error(e); toast('Non riesco a cambiare fotocamera.'); }
+}
+function toggleMic() { if (!CALL?.local) return; CALL.mic = !CALL.mic; CALL.local.getAudioTracks().forEach(t => t.enabled = CALL.mic); paintCall(); }
+function toggleCam() { if (!CALL?.local) return; CALL.cam = !CALL.cam; CALL.local.getVideoTracks().forEach(t => t.enabled = CALL.cam); paintCall(); }
+function togglePartnerAudio() { if (!CALL) return; CALL.partnerMuted = !CALL.partnerMuted; const v = $('#call-remote'); if (v) v.muted = CALL.partnerMuted; paintCall(); }
+function hangUp() { if (!CALL) return; if (CALL.st === 'incoming') return declineCall(); endCall('local'); }
+async function endCall(reason, msg) {
+  if (!CALL) return;
+  const c = CALL;
+  if (reason === 'local' || reason === 'missed') { sendSig('hangup'); callState(reason === 'missed' ? 'missed' : 'ended', c); }
+  teardown();
+  if (msg) toast(msg, 5000);
+  else if (reason === 'declined') toast('Chiamata rifiutata');
+  else if (reason === 'busy') toast(partnerName() + ' è già in un’altra chiamata');
+  else if (reason === 'failed') toast('La connessione non regge: chiamata chiusa.', 5000);
+  if (c.role === 'caller') {
+    const dur = c.startedAt ? Math.round((Date.now() - c.startedAt) / 1000) : 0;
+    if (dur || reason === 'missed' || reason === 'declined') sendMsg({ t: 'call', dur, missed: reason === 'missed', declined: reason === 'declined' }, null, { silent: true });
+  }
+}
+function teardown() {
+  if (!CALL) return;
+  const c = CALL; CALL = null;
+  clearTimeout(c.ringTimer); clearInterval(c.tick); stopRing(); keepAwake(false);
+  try { c.pc?.close(); } catch {}
+  c.local?.getTracks().forEach(t => t.stop());
+  ['#call-remote', '#call-local'].forEach(sel => { const v = $(sel); if (v) { v.srcObject = null; } });
+  $('#call')?.remove();
+  if (activeOverlay === callBack) activeOverlay = null;
+  popNav('call');
+}
+window.__nidoCall = () => CALL && { st: CALL.st, role: CALL.role, pc: CALL.pc?.connectionState, ice: CALL.pc?.iceConnectionState, sig: CALL.pc?.signalingState, gather: CALL.pc?.iceGatheringState, queued: CALL.ice.length, local: !!CALL.local };
+const callBack = () => { pushNav('call'); activeOverlay = callBack; }; // back button can't drop a call by mistake
+
+/* ---------- call screen ---------- */
+function callUI() {
+  $('#call')?.remove();
+  const el = document.createElement('div'); el.id = 'call'; el.className = 'call'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Videochiamata');
+  el.innerHTML = `<video id="call-remote" playsinline autoplay></video>
+    <div class="call-center" id="call-center"><div class="avatar call-av">${esc((partnerName() || '?')[0].toUpperCase())}</div><b>${esc(partnerName())}</b></div>
+    <video id="call-local" playsinline autoplay muted class="mirror"></video>
+    <div class="call-top"><div class="call-who"><b>${esc(partnerName())}</b><span id="call-st"></span></div><span class="call-code" id="call-code" hidden></span></div>
+    <div class="call-bot" id="call-bot"></div>`;
+  document.body.appendChild(el);
+  pushNav('call'); activeOverlay = callBack;
+  paintCall();
+  CALL.tick = setInterval(paintCall, 1000);
+}
+const callBtn = (id, icon, label, cls = '') => `<button class="cb ${cls}" id="${id}" aria-label="${label}">${icon}<span>${label}</span></button>`;
+function paintCall() {
+  const el = $('#call'); if (!el || !CALL) return;
+  const st = $('#call-st', el), bot = $('#call-bot', el);
+  const mmss = s => `${Math.floor(s / 60)}:${pad(s % 60)}`;
+  st.textContent = CALL.st === 'calling' ? 'Squilla…' : CALL.st === 'incoming' ? 'Ti sta videochiamando' : CALL.st === 'connecting' ? 'Connessione…'
+    : CALL.unstable ? 'Connessione instabile…' : mmss(Math.floor((Date.now() - CALL.startedAt) / 1000));
+  el.classList.toggle('live', CALL.st === 'active');
+  const code = $('#call-code', el); code.hidden = !CALL.code; if (CALL.code) code.textContent = CALL.code;
+  const key = CALL.st + '|' + CALL.mic + CALL.cam + CALL.partnerMuted;
+  if (bot.dataset.k === key) return; bot.dataset.k = key;
+  if (CALL.st === 'incoming') {
+    bot.innerHTML = callBtn('cb-no', I.phoneoff, 'Rifiuta', 'red') + callBtn('cb-yes', I.video, 'Rispondi', 'green');
+    $('#cb-no').onclick = declineCall; $('#cb-yes').onclick = acceptCall;
+  } else {
+    bot.innerHTML = callBtn('cb-mic', CALL.mic ? I.mic : I.micoff, CALL.mic ? 'Microfono' : 'Muto', CALL.mic ? '' : 'off')
+      + callBtn('cb-cam', CALL.cam ? I.video : I.videooff, CALL.cam ? 'Video' : 'Video spento', CALL.cam ? '' : 'off')
+      + callBtn('cb-flip', I.flip, 'Gira')
+      + callBtn('cb-spk', CALL.partnerMuted ? I.spkoff : I.spk, CALL.partnerMuted ? 'Audio spento' : 'Audio', CALL.partnerMuted ? 'off' : '')
+      + callBtn('cb-end', I.phoneoff, 'Chiudi', 'red');
+    $('#cb-mic').onclick = toggleMic; $('#cb-cam').onclick = toggleCam; $('#cb-flip').onclick = flipCamera; $('#cb-spk').onclick = togglePartnerAudio; $('#cb-end').onclick = hangUp;
+  }
 }
 
 /* ======================= Calendar ======================= */

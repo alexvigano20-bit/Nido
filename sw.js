@@ -1,6 +1,6 @@
 // Caches only the app shell so it opens instantly. Messages and media are never cached:
 // they live encrypted on the server and are decrypted only in memory.
-const CACHE = 'nido-shell-v4';
+const CACHE = 'nido-shell-v5';
 const SB_URL = 'https://uwerzyyamokvbjozigyj.supabase.co', SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ZXJ6eXlhbW9rdmJqb3ppZ3lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNjI1NzIsImV4cCI6MjEwNjgzODU3Mn0.yygloJyIwCNf-3rIVprf6kPy6bn8vZEtWM7842Ds2I0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './apple-touch-icon.png'];
 const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
@@ -36,7 +36,8 @@ self.addEventListener('push', e => {
     try { await self.navigator.setAppBadge?.(); } catch {}
     await self.registration.showNotification(d.title || 'Nido', {
       body: d.body || 'Hai un nuovo messaggio', icon: 'icon-192.png', badge: 'icon-192.png',
-      tag: 'nido-msg', renotify: true, data: { url: d.url || './#chat' },
+      tag: d.tag || 'nido-msg', renotify: true, data: { url: d.url || './#chat' },
+      requireInteraction: !!d.call, vibrate: d.call ? [500, 250, 500, 250, 500, 250, 500] : [120],
     });
     await ack;
   })());
