@@ -1607,16 +1607,50 @@ function enableZoom(area, el) {
 
 /* ---------- Nido's own camera: photos never touch the gallery, with a self-timer you choose ---------- */
 const TIMERS = [0, 3, 5, 10];
+/* ---------- back lenses: some phones (e.g. Doogee) also expose a night-vision/infrared camera ---------- */
+const isFrontLabel = l => /front|anterior|facing front|user|selfie|facetime/i.test(l);
+async function backCams() {
+  try {
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput' && d.deviceId);
+    if (!all.some(d => d.label)) return [];
+    const back = all.filter(d => !isFrontLabel(d.label));
+    const num = l => { const m = /camera2? ?(\d+)/i.exec(l); return m ? +m[1] : 99; };
+    return back.sort((a, b) => num(a.label) - num(b.label));
+  } catch { return []; }
+}
+function lensName(cam, list) {
+  const l = cam?.label || '';
+  if (/ultra ?wide/i.test(l)) return 'Grandangolo';
+  if (/tele/i.test(l)) return 'Zoom';
+  if (/dual|triple/i.test(l)) return 'Automatica';
+  if (/^back camera$/i.test(l)) return 'Principale';
+  return `Obiettivo ${list.indexOf(cam) + 1}`;
+}
+async function backConstraint() {
+  const list = await backCams();
+  if (!list.length) return { facingMode: 'environment' };
+  let saved = null; try { saved = JSON.parse(lsGet('backCam') || 'null'); } catch {}
+  const pick = (saved && (list.find(d => d.deviceId === saved.id) || list.find(d => d.label === saved.label)))
+    || (/camera2? ?\d/i.test(list[0].label) ? list[0] : null); // Android: lowest number is the main camera
+  return pick ? { deviceId: { exact: pick.deviceId } } : { facingMode: 'environment' };
+}
+async function openBack(extra) {
+  const c = await backConstraint();
+  try { return await navigator.mediaDevices.getUserMedia({ video: { ...c, ...extra }, audio: false }); }
+  catch (e) { if (!c.deviceId) throw e; lsSet('backCam', null); return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', ...extra }, audio: false }); }
+}
 async function openCamera() {
   if (!navigator.mediaDevices?.getUserMedia) { $('#f-photo').click(); return; }
-  let facing = lsGet('camFacing') || 'environment', timer = +(lsGet('camTimer') || 0), stream = null, busy = false, closed = false;
+  let facing = lsGet('camFacing') || 'environment', timer = +(lsGet('camTimer') || 0), stream = null, busy = false, closed = false, cams = [];
   const el = document.createElement('div'); el.className = 'cam'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Fotocamera');
   el.innerHTML = `<video playsinline autoplay muted></video>
-    <div class="ctop"><button class="cbtn" id="cam-x" aria-label="Chiudi">✕</button><button class="cbtn" id="cam-t" aria-label="Autoscatto"></button></div>
+    <div class="ctop"><button class="cbtn" id="cam-x" aria-label="Chiudi">✕</button><div class="row" style="gap:8px"><button class="cbtn" id="cam-l" aria-label="Cambia obiettivo" hidden></button><button class="cbtn" id="cam-t" aria-label="Autoscatto"></button></div></div>
     <div class="count" id="cam-n"></div><div class="flash" id="cam-f"></div>
     <div class="cbot"><button class="cbtn" id="cam-g" aria-label="Scegli dalla galleria">${I.image}</button><button class="shutter" id="cam-s" aria-label="Scatta"></button><button class="cbtn" id="cam-r" aria-label="Cambia fotocamera">${I.flip}</button></div>`;
   document.body.appendChild(el); pushNav('camera');
   const video = $('video', el);
+  const curCam = () => { const id = stream?.getVideoTracks()[0]?.getSettings?.().deviceId; return cams.find(c => c.deviceId === id); };
+  const paintLens = () => { const b = $('#cam-l', el); if (!b) return; b.hidden = cams.length < 2; if (!b.hidden) b.textContent = '◎ ' + lensName(curCam() || cams[0], cams); };
   const paintTimer = () => { $('#cam-t', el).innerHTML = timer ? `⏱ ${timer} s` : '⏱ No'; };
   paintTimer();
   const stop = () => { stream?.getTracks().forEach(t => t.stop()); stream = null; };
@@ -1626,8 +1660,10 @@ async function openCamera() {
   const start = async () => {
     stop();
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+      const size = { width: { ideal: 1920 }, height: { ideal: 1440 } };
+      stream = facing === 'user' ? await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', ...size }, audio: false }) : await openBack(size);
       if (closed) return stop();
+      cams = facing === 'user' ? [] : await backCams(); paintLens();
       video.srcObject = stream; video.classList.toggle('mirror', facing === 'user');
       await video.play().catch(() => {});
     } catch (e) {
@@ -1640,6 +1676,11 @@ async function openCamera() {
   $('#cam-t', el).onclick = () => { timer = TIMERS[(TIMERS.indexOf(timer) + 1) % TIMERS.length]; lsSet('camTimer', String(timer)); paintTimer(); };
   $('#cam-r', el).onclick = () => { facing = facing === 'user' ? 'environment' : 'user'; lsSet('camFacing', facing); start(); };
   $('#cam-g', el).onclick = () => { close(); $('#f-gal').click(); };
+  $('#cam-l', el).onclick = () => {
+    if (cams.length < 2 || busy) return;
+    const next = cams[(cams.indexOf(curCam()) + 1) % cams.length];
+    lsSet('backCam', JSON.stringify({ id: next.deviceId, label: next.label })); start();
+  };
   $('#cam-s', el).onclick = async () => {
     if (busy || !stream) return; busy = true;
     for (let n = timer; n > 0 && !closed; n--) { $('#cam-n', el).textContent = n; await sleep(1000); }
@@ -1691,10 +1732,13 @@ async function iceServers() {
   return base;
 }
 async function getMedia(facing, audio = true) {
-  const st = await navigator.mediaDevices.getUserMedia({
+  const lens = facing === 'environment' ? await backConstraint() : { facingMode: facing };
+  const ask = l => navigator.mediaDevices.getUserMedia({
     audio: audio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
-    video: { facingMode: facing, width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 30, max: 30 } },
+    video: { ...l, width: { ideal: 1280, max: 1280 }, height: { ideal: 720, max: 720 }, frameRate: { ideal: 30, max: 30 } },
   });
+  let st;
+  try { st = await ask(lens); } catch (e) { if (!lens.deviceId) throw e; lsSet('backCam', null); st = await ask({ facingMode: facing }); }
   st.getVideoTracks().forEach(t => { try { t.contentHint = 'motion'; } catch {} }); // smooth movement over sharp detail
   st.getAudioTracks().forEach(t => { try { t.contentHint = 'speech'; } catch {} });
   return st;
@@ -1820,7 +1864,7 @@ async function createPC() {
     if (!CALL || CALL.pc !== pc) return;
     const s = pc.connectionState;
     if (s === 'connected') {
-      if (CALL.st !== 'active') { CALL.st = 'active'; CALL.startedAt = CALL.startedAt || Date.now(); tuneQuality(); safetyCode(); keepAwake(true); }
+      if (CALL.st !== 'active') { CALL.st = 'active'; CALL.startedAt = CALL.startedAt || Date.now(); tuneQuality(); safetyCode(); keepAwake(true); startAvSync(); }
       CALL.unstable = false; paintCall();
     } else if (s === 'disconnected') { CALL.unstable = true; paintCall(); }
     else if (s === 'failed') {
@@ -1836,6 +1880,52 @@ async function tuneQuality() {
     if (s.track?.kind === 'audio') { p.encodings[0].maxBitrate = 96_000; p.encodings[0].priority = p.encodings[0].networkPriority = 'high'; }
     try { await s.setParameters(p); } catch {}
   }
+}
+/* Lip sync: measure how long audio and video wait in the receive buffers; if audio is later, hold video back by the gap.
+   A short anonymous summary (no content) is stored at the end so call quality can be checked. */
+function setVideoDelay(c, ms) {
+  for (const r of c.pc?.getReceivers() || []) {
+    if (r.track?.kind !== 'video') continue;
+    try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = ms; else if ('playoutDelayHint' in r) r.playoutDelayHint = ms / 1000; } catch {}
+  }
+}
+function startAvSync() {
+  const c = CALL; if (!c || c.sync) return;
+  let prev = null, target = 0;
+  const q = c.q = { n: 0, aj: 0, vj: 0, rtt: 0, rttN: 0, relay: false, maxDelay: 0, w: 0, h: 0, fps: 0, lost: 0, recv: 0 };
+  c.sync = setInterval(async () => {
+    if (CALL !== c || !c.pc) return clearInterval(c.sync);
+    let st; try { st = await c.pc.getStats(); } catch { return; }
+    const cur = {}, byId = new Map(); let pair = null;
+    st.forEach(r => { byId.set(r.id, r); if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.kind === 'video')) cur[r.kind] = r; });
+    st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId.get(r.selectedCandidatePairId); });
+    if (!pair) st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+    const ms = k => { const a = cur[k], b = prev?.[k]; if (!a || !b) return null; const n = (a.jitterBufferEmittedCount || 0) - (b.jitterBufferEmittedCount || 0); return n > 0 ? ((a.jitterBufferDelay || 0) - (b.jitterBufferDelay || 0)) / n * 1000 : null; };
+    const am = ms('audio'), vm = ms('video'); prev = cur;
+    if (am != null && vm != null) {
+      const gap = am - vm;
+      if (Math.abs(gap) > 25) { target = Math.max(0, Math.min(800, target + gap * 0.6)); setVideoDelay(c, Math.round(target)); }
+      q.n++; q.aj += am; q.vj += vm; q.maxDelay = Math.max(q.maxDelay, Math.round(target));
+    }
+    if (pair) {
+      if (pair.currentRoundTripTime) { q.rtt += pair.currentRoundTripTime * 1000; q.rttN++; }
+      const lc = byId.get(pair.localCandidateId), rc = byId.get(pair.remoteCandidateId);
+      if (lc?.candidateType === 'relay' || rc?.candidateType === 'relay') q.relay = true;
+    }
+    const v = cur.video, a = cur.audio;
+    if (v) { q.w = v.frameWidth || q.w; q.h = v.frameHeight || q.h; if (v.framesPerSecond) q.fps = v.framesPerSecond; }
+    if (a) { q.lost = a.packetsLost || 0; q.recv = a.packetsReceived || 0; }
+  }, 2000);
+}
+async function reportCall(c) {
+  const q = c.q, dur = c.startedAt ? Math.round((Date.now() - c.startedAt) / 1000) : 0;
+  if (!q || dur < 10 || !sb?.from) return;
+  let outLat = null; try { const ac = new AudioContext(); outLat = Math.round(((ac.outputLatency || 0) + (ac.baseLatency || 0)) * 1000); ac.close(); } catch {}
+  const r = (x, n) => n ? Math.round(x / n) : null;
+  const diag = { versione: BUILD, dispositivo: deviceName(), durata_s: dur, ponte_cloudflare: q.relay, ritardo_rete_ms: r(q.rtt, q.rttN),
+    attesa_audio_ms: r(q.aj, q.n), attesa_video_ms: r(q.vj, q.n), video_trattenuto_max_ms: q.maxDelay, latenza_uscita_audio_ms: outLat,
+    video_ricevuto: q.w ? `${q.w}x${q.h} @ ${Math.round(q.fps)} fps` : null, audio_perso_pct: q.recv ? +(100 * q.lost / (q.lost + q.recv)).toFixed(1) : null };
+  try { await sb.from('reports').insert({ kind: 'chiamata', text: 'Statistiche videochiamata', diag }); } catch {}
 }
 async function safetyCode() {
   try {
@@ -1892,7 +1982,8 @@ async function endCall(reason, msg) {
 function teardown() {
   if (!CALL) return;
   const c = CALL; CALL = null;
-  clearTimeout(c.ringTimer); clearInterval(c.tick); stopRing(); keepAwake(false);
+  clearTimeout(c.ringTimer); clearInterval(c.tick); clearInterval(c.sync); stopRing(); keepAwake(false);
+  reportCall(c);
   try { c.pc?.close(); } catch {}
   c.local?.getTracks().forEach(t => t.stop());
   ['#call-remote', '#call-local'].forEach(sel => { const v = $(sel); if (v) { v.srcObject = null; } });
@@ -2206,7 +2297,7 @@ function openSettings() {
     $('#st-push', s).onclick = () => { closeSheet(); lsSet('pushHide', null); enablePush(); };
     $('#st-pin', s).onclick = () => pinSheet();
     $('#st-report', s).onclick = () => { closeSheet(); setTimeout(reportSheet, 50); };
-    $('#st-tour', s).onclick = () => { closeSheet(); go('home'); setTimeout(runTour, 250); };
+    $('#st-tour', s).onclick = () => { closeSheet(); go('home'); setTimeout(() => runTour(0), 250); };
     $('#st-lock', s).onclick = async () => { closeSheet(); await keyStore('del'); KEY = null; location.reload(); };
     $('#st-out', s).onclick = () => { closeSheet(); signOut(); };
     $('#st-wipe', s).onclick = () => { $('#st-confirm', s).hidden = false; };
@@ -2241,28 +2332,33 @@ function closeSheet() { if (!sheetEl) return; sheetEl.remove(); sheetEl = null; 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewerCleanup) closeViewer(); else closeSheet(); } });
 
 /* ======================= Guided tour ======================= */
-// Bump TOUR_VERSION whenever the tour changes: both phones will see it again on the next opening.
-const TOUR_VERSION = 3;
-const TOUR = [
+// Bump TOUR_VERSION whenever the tour changes and tag the changed steps with v: TOUR_VERSION.
+// New users see the whole tour; someone who already saw it only sees the steps that changed since.
+const TOUR_VERSION = 4;
+const TOUR_ALL = [
   { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro, con qualche novità. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
-  { tab: 'home', t: 'Perché non WhatsApp', p: 'Anche WhatsApp cifra i messaggi, ma Meta sa con chi parli, quando, quanto spesso e da dove, e i backup su iCloud o Google spesso non sono cifrati. Il Nido non chiede numero né rubrica e non ha pubblicità: il server è solo vostro, ci entrano solo due account e vede soltanto dati illeggibili.' },
-  { tab: 'home', t: 'Cosa resta, e cosa no', p: 'Niente finisce in galleria o in backup nel cloud, e la chat si cancella da sola dopo 30 o 7 giorni. Per onestà: uno screenshot è sempre possibile, e qui l’app non può bloccarlo come fa WhatsApp con le foto “una volta”. Per tutto il resto, il Nido lascia molte meno tracce.' },
+  { tab: 'home', v: 3, t: 'Perché non WhatsApp', p: 'Anche WhatsApp cifra i messaggi, ma Meta sa con chi parli, quando, quanto spesso e da dove, e i backup su iCloud o Google spesso non sono cifrati. Il Nido non chiede numero né rubrica e non ha pubblicità: il server è solo vostro, ci entrano solo due account e vede soltanto dati illeggibili.' },
+  { tab: 'home', v: 3, t: 'Cosa resta, e cosa no', p: 'Niente finisce in galleria o in backup nel cloud, e la chat si cancella da sola dopo 30 o 7 giorni. Per onestà: uno screenshot è sempre possibile, e qui l’app non può bloccarlo come fa WhatsApp con le foto “una volta”. Per tutto il resto, il Nido lascia molte meno tracce.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
   { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Spunte di lettura come su WhatsApp, e la tastiera resta aperta per scrivere più messaggi di fila. Per rispondere citando un messaggio, scorrilo verso destra; tenendolo premuto puoi anche copiarlo o eliminarlo. La chat si cancella da sola dopo 30 giorni, o 7.' },
-  { tab: 'chat', sel: '#c-call', t: 'Novità: videochiamata', p: 'Tocca qui per videochiamare: 720p fluida, cifrata da telefono a telefono. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
-  { tab: 'chat', sel: '#c-att', t: 'Foto, video, vocali e capsule', p: 'Novità: la fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e le foto non finiscono mai in galleria. Chi invia sceglie se si vedono una volta, due volte (la seconda entro 24 ore) o liberamente, e se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
+  { tab: 'chat', sel: '#c-call', v: 4, t: 'Videochiamata', p: 'Tocca qui per videochiamare: 720p fluida, cifrata da telefono a telefono, con voce e immagine tenute allineate. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
+  { tab: 'chat', sel: '#c-att', v: 4, t: 'Foto, video, vocali e capsule', p: 'La fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e, se il telefono ha più obiettivi, il tasto ◎ per sceglierli (anche quello notturno). Le foto non finiscono mai in galleria. Chi invia sceglie se si vedono una volta, due volte (la seconda entro 24 ore) o liberamente, e se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
   { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi e potete scorrere mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
   { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta: l’orario si ripete ogni settimana. Per ogni lezione segna se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
   { tab: 'todo', sel: '#tab-todo', t: 'Da fare', p: 'Una lista per due. Assegna le cose a uno dei due o a entrambi; le completate restano nello storico, divise per mese.' },
-  { tab: 'home', sel: '#open-report', t: 'Novità: segnala un problema', p: 'Se qualcosa non va, tocca la bandierina e descrivilo: la segnalazione arriva a Claude con i dati tecnici, mai con i vostri messaggi, e viene sistemata al controllo successivo.' },
+  { tab: 'home', sel: '#open-report', t: 'Segnala un problema', p: 'Se qualcosa non va, tocca la bandierina e descrivilo: la segnalazione arriva a Claude con i dati tecnici, mai con i vostri messaggi, e viene sistemata al controllo successivo.' },
   { tab: 'home', sel: '#open-settings', t: 'Impostazioni', p: 'Notifiche, codice di sblocco del Nido su questo telefono, durata della chat, il tuo nome e la data in cui vi siete messi insieme. Da qui puoi anche rivedere questo tour.' },
 ];
 async function maybeTour() {
-  if (+(lsGet('tourV') || 0) >= TOUR_VERSION) return;
-  try { const p = await db.doc(`data/users/${S.me}/prefs`).get(); if (p.exists && +(p.data().tourV || 0) >= TOUR_VERSION) { lsSet('tourV', String(TOUR_VERSION)); return; } } catch {}
-  setTimeout(runTour, 500);
+  let seen = +(lsGet('tourV') || 0);
+  if (seen >= TOUR_VERSION) return;
+  try { const p = await db.doc(`data/users/${S.me}/prefs`).get(); if (p.exists) seen = Math.max(seen, +(p.data().tourV || 0)); } catch {}
+  if (seen >= TOUR_VERSION) { lsSet('tourV', String(TOUR_VERSION)); return; }
+  setTimeout(() => runTour(seen), 500);
 }
-function runTour() {
+function runTour(since = 0) {
+  const TOUR = since ? TOUR_ALL.filter(s => (s.v || 1) > since).map(s => ({ ...s, t: 'Novità: ' + s.t })) : TOUR_ALL;
+  if (!TOUR.length) return;
   let i = 0;
   const el = document.createElement('div'); el.className = 'tour'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Tour guidato');
   el.innerHTML = `<div class="spot"></div><div class="tip"><span class="label" id="tr-n"></span><h3 id="tr-t"></h3><p id="tr-p"></p>
@@ -2313,7 +2409,7 @@ function reportDelivered() {
 /* ======================= Problem reports to Claude ======================= */
 // Reports go to the `reports` table; a private GitHub check turns them into issues Claude reads when debugging.
 // They never include messages or anything from the encrypted store, only what is typed here plus technical data.
-const BUILD = '2026-10-07 06:16';
+const BUILD = '2026-10-08 02:03';
 const recentErrors = (() => { try { return JSON.parse(lsGet('errs') || '[]'); } catch { return []; } })();
 function deviceName() { const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Altro'; }
 function noteError(where, e) {
