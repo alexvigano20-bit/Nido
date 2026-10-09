@@ -301,6 +301,7 @@ details.hist summary::-webkit-details-marker{display:none}
 .call #call-local{position:absolute;right:14px;top:calc(84px + env(safe-area-inset-top,0px));width:30%;max-width:150px;aspect-ratio:3/4;object-fit:cover;border-radius:14px;border:2px solid rgba(255,255,255,.35);background:#222;z-index:2}
 .call #call-local.mirror{transform:scaleX(-1)}
 .call:not(.haslocal) #call-local{display:none}
+.call .lens{position:absolute;left:14px;top:calc(84px + env(safe-area-inset-top,0px));z-index:3;background:rgba(0,0,0,.5);color:#fff;border:0;border-radius:999px;padding:10px 16px;font-weight:700;font-size:14px;min-height:44px}
 .call .call-top{position:absolute;left:0;right:0;top:0;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;background:linear-gradient(rgba(0,0,0,.55),transparent);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;z-index:3}
 .call .call-who{display:flex;flex-direction:column;text-shadow:0 1px 6px rgba(0,0,0,.5)}
 .call .call-who b{font-size:18px}
@@ -1804,6 +1805,7 @@ async function onSignal(m) {
       sendSig('answer', { type: ans.type, sdp: ans.sdp });
       flushIce();
     } else if (m.kind === 'answer' && CALL.role === 'caller' && CALL.pc) {
+      if (CALL.pc.signalingState !== 'have-local-offer') return; // duplicate answer: already applied
       await CALL.pc.setRemoteDescription(m.data); flushIce();
     } else if (m.kind === 'ice') {
       if (CALL.pc?.remoteDescription) await CALL.pc.addIceCandidate(m.data).catch(() => {});
@@ -1903,6 +1905,7 @@ async function reportCall(c) {
   const r = (x, n) => n ? Math.round(x / n) : null;
   const diag = { versione: BUILD, dispositivo: deviceName(), durata_s: dur, ponte_cloudflare: q.relay, ritardo_rete_ms: r(q.rtt, q.rttN),
     attesa_audio_ms: r(q.aj, q.n), attesa_video_ms: r(q.vj, q.n), video_trattenuto_max_ms: q.maxDelay, latenza_uscita_audio_ms: outLat,
+    obiettivi: (c.cams || []).map(x => x.label).join(' | ') || null, obiettivo_usato: c.lensLabel || null,
     video_ricevuto: q.w ? `${q.w}x${q.h} @ ${Math.round(q.fps)} fps` : null, audio_perso_pct: q.recv ? +(100 * q.lost / (q.lost + q.recv)).toFixed(1) : null };
   try { await sb.from('reports').insert({ kind: 'chiamata', text: 'Statistiche videochiamata', diag }); } catch {}
 }
@@ -1924,10 +1927,26 @@ async function attachLocal(stream) {
   const v = $('#call-local'); if (v) { v.srcObject = stream; v.classList.toggle('mirror', CALL.facing === 'user'); v.play().catch(() => {}); }
   paintCall();
 }
-async function flipCamera() {
+function flipCamera() { if (CALL?.local && !CALL.switching) setCallVideo(CALL.facing === 'user' ? 'environment' : 'user'); }
+async function nextCallLens() {
+  if (!CALL?.local || CALL.switching || CALL.facing !== 'environment') return;
+  const cams = CALL.cams || [];
+  if (cams.length < 2) return;
+  const id = CALL.local.getVideoTracks()[0]?.getSettings?.().deviceId;
+  const next = cams[(cams.findIndex(c => c.deviceId === id) + 1) % cams.length];
+  lsSet('backCam', JSON.stringify({ id: next.deviceId, label: next.label }));
+  setCallVideo('environment');
+}
+function paintCallLens() {
+  const b = $('#call-lens'); if (!b || !CALL) return;
+  const cams = CALL.cams || [], id = CALL.local?.getVideoTracks()[0]?.getSettings?.().deviceId;
+  b.hidden = CALL.facing !== 'environment' || cams.length < 2;
+  if (!b.hidden) { const cur = cams.find(c => c.deviceId === id) || cams[0]; b.textContent = '◎ ' + lensName(cur, cams); CALL.lensLabel = cur.label; }
+}
+async function setCallVideo(facing) {
   if (!CALL?.local) return;
+  CALL.switching = true;
   const old = CALL.local.getVideoTracks()[0];
-  const facing = CALL.facing === 'user' ? 'environment' : 'user';
   old?.stop(); // iPhone can't open the second camera while the first one is running
   try {
     const s = await getMedia(facing, false);
@@ -1938,7 +1957,9 @@ async function flipCamera() {
     CALL.facing = facing;
     const v = $('#call-local'); if (v) { v.srcObject = CALL.local; v.classList.toggle('mirror', facing === 'user'); }
     if (CALL.pc) tuneQuality();
+    if (facing === 'environment') CALL.cams = await backCams();
   } catch (e) { console.error(e); toast('Non riesco a cambiare fotocamera.'); }
+  if (CALL) { CALL.switching = false; paintCallLens(); }
 }
 function toggleMic() { if (!CALL?.local) return; CALL.mic = !CALL.mic; CALL.local.getAudioTracks().forEach(t => t.enabled = CALL.mic); paintCall(); }
 function toggleCam() { if (!CALL?.local) return; CALL.cam = !CALL.cam; CALL.local.getVideoTracks().forEach(t => t.enabled = CALL.cam); paintCall(); }
@@ -1980,9 +2001,11 @@ function callUI() {
   el.innerHTML = `<video id="call-remote" playsinline autoplay></video>
     <div class="call-center" id="call-center"><div class="avatar call-av">${esc((partnerName() || '?')[0].toUpperCase())}</div><b>${esc(partnerName())}</b></div>
     <video id="call-local" playsinline autoplay muted class="mirror"></video>
+    <button class="lens" id="call-lens" aria-label="Cambia obiettivo" hidden></button>
     <div class="call-top"><div class="call-who"><b>${esc(partnerName())}</b><span id="call-st"></span></div><span class="call-code" id="call-code" hidden></span></div>
     <div class="call-bot" id="call-bot"></div>`;
   document.body.appendChild(el);
+  $('#call-lens', el).onclick = nextCallLens;
   pushNav('call'); activeOverlay = callBack;
   paintCall();
   CALL.tick = setInterval(paintCall, 1000);
@@ -2313,14 +2336,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (viewer
 /* ======================= Guided tour ======================= */
 // Bump TOUR_VERSION whenever the tour changes and tag the changed steps with v: TOUR_VERSION.
 // New users see the whole tour; someone who already saw it only sees the steps that changed since.
-const TOUR_VERSION = 4;
+const TOUR_VERSION = 5;
 const TOUR_ALL = [
   { tab: 'home', t: 'Benvenuti nel Nido', p: 'Un posto solo vostro, con qualche novità. Tutto quello che mettete qui viene cifrato sul telefono con la vostra frase segreta: nemmeno il server può leggerlo.' },
   { tab: 'home', v: 3, t: 'Perché non WhatsApp', p: 'Anche WhatsApp cifra i messaggi, ma Meta sa con chi parli, quando, quanto spesso e da dove, e i backup su iCloud o Google spesso non sono cifrati. Il Nido non chiede numero né rubrica e non ha pubblicità: il server è solo vostro, ci entrano solo due account e vede soltanto dati illeggibili.' },
   { tab: 'home', v: 3, t: 'Cosa resta, e cosa no', p: 'Niente finisce in galleria o in backup nel cloud, e la chat si cancella da sola dopo 30 o 7 giorni. Per onestà: uno screenshot è sempre possibile, e qui l’app non può bloccarlo come fa WhatsApp con le foto “una volta”. Per tutto il resto, il Nido lascia molte meno tracce.' },
   { tab: 'home', sel: '#home-chat', t: 'Lo stato dell’altro', p: 'Qui vedi se è online, se sta scrivendo o quando è entrato l’ultima volta. Sotto trovi la giornata, il countdown al prossimo incontro e le cose da fare.' },
   { tab: 'chat', sel: '#tab-chat', t: 'La vostra chat', p: 'Spunte di lettura come su WhatsApp, e la tastiera resta aperta per scrivere più messaggi di fila. Per rispondere citando un messaggio, scorrilo verso destra; tenendolo premuto puoi anche copiarlo o eliminarlo. La chat si cancella da sola dopo 30 giorni, o 7.' },
-  { tab: 'chat', sel: '#c-call', v: 4, t: 'Videochiamata', p: 'Tocca qui per videochiamare: 720p fluida, cifrata da telefono a telefono, con voce e immagine tenute allineate. Durante la chiamata puoi girare la fotocamera, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
+  { tab: 'chat', sel: '#c-call', v: 5, t: 'Videochiamata', p: 'Tocca qui per videochiamare: 720p fluida, cifrata da telefono a telefono, con voce e immagine tenute allineate. Durante la chiamata puoi girare la fotocamera e, dietro, scegliere l’obiettivo con il tasto ◎, metterti in muto, togliere l’audio dell’altro o spegnere il video. In alto compaiono 4 parole: se sono uguali sui due telefoni, nessuno è in mezzo.' },
   { tab: 'chat', sel: '#c-att', v: 4, t: 'Foto, video, vocali e capsule', p: 'La fotocamera del Nido ha l’autoscatto (No, 3, 5, 10 secondi) e, se il telefono ha più obiettivi, il tasto ◎ per sceglierli (anche quello notturno). Le foto non finiscono mai in galleria. Chi invia sceglie se si vedono una volta, due volte (la seconda entro 24 ore) o liberamente, e se l’altro può salvarle. Le foto si ingrandiscono con due dita. La Capsula è un messaggio che si apre in una data scelta.' },
   { tab: 'cal', sel: '#tab-cal', t: 'Calendario condiviso', p: 'Lo modificate entrambi e potete scorrere mesi passati e futuri. Segnate “Ci vediamo” per far partire il countdown in Home.' },
   { tab: 'lez', sel: '#tab-lez', t: 'Orario delle lezioni', p: 'Inserisci i corsi una volta: l’orario si ripete ogni settimana. Per ogni lezione segna se è stata seguita, saltata o annullata, e la frequenza si calcola da sola.' },
