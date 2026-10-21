@@ -63,4 +63,16 @@ create policy "nido media insert" on storage.objects for insert to authenticated
 create policy "nido media update" on storage.objects for update to authenticated using (bucket_id = 'media' and public.is_member());
 create policy "nido media delete" on storage.objects for delete to authenticated using (bucket_id = 'media' and public.is_member());
 
+-- Permessi espliciti per le API (da ottobre 2026 Supabase non li dà più in automatico alle tabelle nuove).
+-- Gli accessi veri restano decisi dalle regole RLS qui sopra: solo i due membri del Nido vedono qualcosa.
+do $$
+declare t text;
+begin
+  foreach t in array array['members', 'docs', 'push_subs', 'reports', 'delivery_log'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('grant select, insert, update, delete on public.%I to authenticated, service_role', t);
+    end if;
+  end loop;
+end $$;
+
 select 'Nido pronto ✔' as esito;
